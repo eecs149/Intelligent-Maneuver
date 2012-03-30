@@ -35,6 +35,7 @@ int count = 0;
 C_RESULT ardrone_tool_init_custom(int argc, char **argv)
 {
     C_RESULT res;
+    // Set drone to "takeoff" mode
     res = ardrone_tool_set_ui_pad_start(1);
     return res;
 }
@@ -58,14 +59,20 @@ C_RESULT signal_exit()
   return C_OK;
 }
 
+/* This function is called in the update function, at a refresh rate of 20 ms */
 C_RESULT ardrone_tool_update_custom() {
+
+    // Count the number of times update was called
     count++;
     if (count % 50 == 0) {
         printf("Cycle %d\n", count);
     }
+    // If updated 1500 times (~30 seconds)
+    // set drone to "landing" mode
     if (count == 1500) {
         return ardrone_tool_set_ui_pad_start(0);
     }
+    // After giving drone some time to land, exit program
     if (count >= 1550) {
         return signal_exit();
     }
