@@ -4,6 +4,7 @@ def main(args):
     f = open(args[1])
     filename, ext = os.path.splitext(args[1])
     writer = csv.writer(open(filename + '.csv', 'w'))
+    writer.writerow(['theta', 'phi', 'psi', 'altitude', 'vx', 'vy', 'vz', 'accelx', 'accely', 'accelz', 'yaw1', 'yaw2'])
     while True:
         line1 = f.readline()
         if len(line1) == 0: break
