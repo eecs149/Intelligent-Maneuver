@@ -1,0 +1,11 @@
+Requires:
+- MRPT library
+- Boost library
+
+To compile, use cmake:
+- Create a build dir
+- run cmake to this dir from the build dir
+- Then compile with make
+
+To run:
+- ./mrpt_example1 (SRC DIR)/2007-05MAY-17_SENA_Floor2.3_1laser.rawlog_LASER.txt (SRC DIR)/2007-05MAY-17_SENA_Floor2.3_1laser.rawlog_ODO.txt (SRC DIR)/icp-slam_demo_classic.ini
