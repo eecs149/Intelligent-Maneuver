@@ -79,11 +79,12 @@ int main(int argc, char* argv[]) {
         icp_slam.processObservation(obs2);
 
         // Extract current estimates
+        // NOTE: coordinate points are in METERS
         // First get the grid map
         CMultiMetricMap* curMapEst = icp_slam.getCurrentlyBuiltMetricMap();
         /* Grid representation of the current map.
-         * Minimums: getXMin(), getYMin()
-         * Maximums: getXMax(), getYMax()
+         * Grid X Range: [0, getSizeX()]
+         * Grid Y Range: [0, getSizeY()]
          * Convert from coordinate to grid loc: x2idx(float), y2idx(float)
          * Convert from grid loc to coordinate: idx2x(int), idx2y(float)
          * Use getCell(int x, int y) to tell if the cell is empty or not. A real value [0,1], which is the probablity that cell is empty
