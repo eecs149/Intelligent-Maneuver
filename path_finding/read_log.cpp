@@ -10,14 +10,17 @@
 #include <mrpt/obs.h>
 #include <mrpt/slam.h>
 #include <mrpt/poses.h> 
+#include <mrpt/opengl.h>
+#include <mrpt/gui.h>
+
 using namespace std;
 using namespace boost;
 using namespace mrpt;
 using namespace mrpt::utils;
 using namespace mrpt::system;
 using namespace mrpt::slam;
-
-double diffclock(clock_t, clock_t);
+using namespace mrpt::opengl;
+using namespace mrpt::gui;
 
 int main(int argc, char* argv[]) {
     ifstream laserLog, robotLog;
@@ -27,6 +30,15 @@ int main(int argc, char* argv[]) {
     size_t rawlogEntry = 0;
     bool end = false;
     double accumX = 0.0, accumY = 0.0, accumPhi = 0.0;
+
+    // Graphics stuff
+    // Create 3D window if requested:
+    CDisplayWindow3D*win3D = NULL;
+    #if MRPT_HAS_WXWIDGETS
+    win3D = new CDisplayWindow3D("ICP-SLAM @ MRPT C++ Library (C) 2004-2008", 600, 500);
+    win3D->setCameraZoom(20);
+    win3D->setCameraAzimuthDeg(-45);
+    #endif
 
     // Load configurations
     icp_slam.ICP_options.loadFromConfigFile(iniFile, "MappingApplication");
@@ -104,6 +116,70 @@ int main(int argc, char* argv[]) {
         int gridRobY = gridMap->y2idx(roby);
 
         // Perform path finding
+
+        // Save a 3D scene view of the mapping process:
+        if (win3D!=NULL)
+        {
+            COpenGLScenePtr scene = COpenGLScenePtr( new COpenGLScene() );
+        
+            COpenGLViewportPtr view = scene->getViewport("main");
+            ASSERT_(view);
+        
+            COpenGLViewportPtr view_map = scene->createViewport("mini-map");
+            view_map->setBorderSize(2);
+            view_map->setViewportPosition(0.01,0.01,0.35,0.35);
+            view_map->setTransparent(false);
+        
+            CCamera &cam = view_map->getCamera();
+            cam.setAzimuthDegrees(-90);
+            cam.setElevationDegrees(90);
+            cam.setPointingAt(curPosEst.x(),curPosEst.y(),curPosEst.z());
+            cam.setZoomDistance(20);
+            cam.setOrthogonal();
+        
+            // The ground:
+            CGridPlaneXYPtr groundPlane = CGridPlaneXY::Create(-200,200,-200,200,0,5);
+            groundPlane->setColor(0.4,0.4,0.4);
+            view->insert( groundPlane );
+            view_map->insert( CRenderizablePtr( groundPlane) ); // A copy
+        
+            // The camera pointing to the current robot pose:
+            scene->enableFollowCamera(true);
+        
+            cam = view_map->getCamera();
+            cam.setAzimuthDegrees(-45);
+            cam.setElevationDegrees(45);
+            cam.setPointingAt(curPosEst.x(),curPosEst.y(),curPosEst.z());
+        
+            // The maps:
+            CSetOfObjectsPtr obj = CSetOfObjects::Create();
+            curMapEst->getAs3DObject( obj );
+            view->insert(obj);
+        
+            // Only the point map:
+            CSetOfObjectsPtr ptsMap = CSetOfObjects::Create();
+            if (curMapEst->m_pointsMaps.size())
+            {
+                curMapEst->m_pointsMaps[0]->getAs3DObject(ptsMap);
+                view_map->insert( ptsMap );
+            }
+        
+            // Show 3D?
+            if (win3D)
+            {
+                COpenGLScenePtr &ptrScene = win3D->get3DSceneAndLock();
+                ptrScene = scene;
+        
+                win3D->unlockAccess3DScene();
+        
+                // Move camera:
+                win3D->setCameraPointingToPoint( curPosEst.x(), curPosEst.y(), curPosEst.z() );
+        
+                // Update:
+                win3D->forceRepaint();
+            }
+        }
+        
     }
     // Save map estimate to temp.png
     icp_slam.saveCurrentEstimationToImage("temp");

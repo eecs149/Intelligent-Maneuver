@@ -12,7 +12,7 @@ if(COMMAND cmake_policy)
 #   The dependencies of a library are automatically added, so you only 
 #    need to specify the top-most libraries your code depends on.
 # --------------------------------------------------------------------------
-FIND_PACKAGE( MRPT REQUIRED base obs slam )    # WARNING: Add all the MRPT libs used by your program: "gui", "obs", "slam",etc. 
+FIND_PACKAGE( MRPT REQUIRED base obs slam opengl gui )    # WARNING: Add all the MRPT libs used by your program: "gui", "obs", "slam",etc. 
 FIND_PACKAGE( Boost REQUIRED )
 
 # Declare the target (an executable)
