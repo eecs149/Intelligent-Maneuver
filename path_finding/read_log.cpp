@@ -1,10 +1,8 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <ctime>
-
-#include <boost/foreach.hpp>
-#include <boost/tokenizer.hpp>
 
 #include <mrpt/utils.h>
 #include <mrpt/obs.h>
@@ -14,7 +12,6 @@
 #include <mrpt/gui.h>
 
 using namespace std;
-using namespace boost;
 using namespace mrpt;
 using namespace mrpt::utils;
 using namespace mrpt::system;
@@ -48,40 +45,29 @@ int main(int argc, char* argv[]) {
     laserLog.open(argv[1]); // log of laser scan
     robotLog.open(argv[2]); // log of robot odometer
 
-    char_separator<char> sep(" ");
     while (laserLog.good()) {
+        double f;
         getline(laserLog, laserLine);
         getline(robotLog, robotLine);
 
         // Extract the laser scan info and convert it into a range scan observation to feed into icp-slam
         CObservation2DRangeScanPtr obs = CObservation2DRangeScan::Create();
-        tokenizer< char_separator<char> > tokensLaser(laserLine, sep);
-        BOOST_FOREACH(string t, tokensLaser)
+        stringstream ssLaser(laserLine);
+        while (ssLaser >> f)
         {
-            obs->scan.push_back(atof(t.c_str()));
+            obs->scan.push_back(f);
             obs->validRange.push_back(1);
         }
         icp_slam.processObservation(obs);
 
         // Extract the odometer values and convert it into an observation to feed into icp-slam
-        int count = 0;
-        tokenizer< char_separator<char> > tokensRobot(robotLine, sep);
-        BOOST_FOREACH(string t, tokensRobot)
-        {
-            if (count == 0) {
-                accumX += atof(t.c_str());
-                count++;
-            }
-            else if (count == 1) {
-                accumY += atof(t.c_str());
-                count++;
-            }
-            else if (count == 2) {
-                accumPhi += atof(t.c_str());
-                count++;
-            }
-
-        }
+        stringstream ssRobot(robotLine);
+        ssRobot >> f;
+        accumX += f;
+        ssRobot >> f;
+        accumY += f;
+        ssRobot >> f;
+        accumPhi += f;
         // Need the ABSOLUTE odometer readings, meaning the accumulated values
         CPose2DPtr rawOdo(new CPose2D(accumX, accumY, accumPhi));
         CObservationOdometryPtr obs2 = CObservationOdometry::Create();
