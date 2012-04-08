@@ -3,6 +3,7 @@
 #include <sstream>
 #include <vector>
 #include <ctime>
+#include <queue>
 
 #include <mrpt/utils.h>
 #include <mrpt/obs.h>
@@ -18,6 +19,132 @@ using namespace mrpt::system;
 using namespace mrpt::slam;
 using namespace mrpt::opengl;
 using namespace mrpt::gui;
+
+
+
+struct Node
+{
+    int x;
+    int y;
+    int g;
+    int h;
+    int f;
+    int parentX;
+    int parentY;
+
+    Node(int x, int y, int g, int h, int parentX, int parentY):
+    x(x), y(y), g(g), h(h), f(g+h), parentX(parentX), parentY(parentY)
+    { }
+
+    
+    bool operator<(const Node& other) const
+    {
+        return f < other.f;
+    }
+};
+
+class PathFinder
+{
+public:
+    PathFinder(int resolution):
+    resolution(resolution), gridWidth(0), gridHeight(0)
+    {
+    }
+
+    bool findPath(const TPoint2D& start, const TPoint2D& end, deque<TPoint2D>& path)
+    {
+        int endX = end.x / resolution;
+        int endY = end.y / resolution;
+
+        vector<int> parentX(gridWidth*gridHeight, -1);
+        vector<int> parentY(gridWidth*gridHeight, -1);
+        priority_queue<Node> fringe;
+        fringe.push(Node(start.x/resolution, start.y/resolution, 0, 0, -1, -1));
+
+        while (fringe.size())
+        {
+            Node pt = fringe.top();
+            fringe.pop();
+            if (parentX[pt.y*gridWidth+pt.x] >= 0)
+                continue;
+            parentX[pt.y*gridWidth+pt.x] = pt.parentX;
+            parentY[pt.y*gridWidth+pt.x] = pt.parentY;
+
+            if (pt.x == endX && pt.y == endY)
+            {
+                int x = pt.x;
+                int y = pt.y;
+                while (parentX[y*gridWidth+x] >= 0)
+                {
+                    path.push_front(TPoint2D(x, y));
+                    int oldX = x;
+                    x = parentX[y*gridWidth+x];
+                    y = parentY[y*gridWidth+oldX];
+                }
+                return true;
+            }
+
+            if (pt.x > 0 && !occupancyGrid[pt.y*gridWidth+pt.x-1])
+                fringe.push(Node(pt.x-1, pt.y, pt.g+1, abs(endX-pt.x)+abs(endY-pt.y), pt.x, pt.y));
+            if (pt.y > 0 && !occupancyGrid[(pt.y-1)*gridWidth+pt.x])
+                fringe.push(Node(pt.x, pt.y-1, pt.g+1, abs(endX-pt.x)+abs(endY-pt.y), pt.x, pt.y));
+            if (pt.x+1 < gridWidth && !occupancyGrid[pt.y*gridWidth+pt.x+1])
+                fringe.push(Node(pt.x+1, pt.y, pt.g+1, abs(endX-pt.x)+abs(endY-pt.y), pt.x, pt.y));
+            if (pt.y+1 < gridHeight && !occupancyGrid[(pt.y+1)*gridWidth+pt.x])
+                fringe.push(Node(pt.x, pt.y+1, pt.g+1, abs(endX-pt.x)+abs(endY-pt.y), pt.x, pt.y));
+        }
+
+        return false;
+    }
+
+    void update(const COccupancyGridMap2D& gridMap)
+    {
+        if (gridMap.getSizeX() > gridWidth*resolution || gridMap.getSizeY() > gridHeight*resolution)
+        {
+            int newGridHeight = gridMap.getSizeY() / resolution;
+            int newGridWidth = gridMap.getSizeX() / resolution;
+            vector<unsigned char> newOccupancyMap(newGridHeight * newGridWidth, 0);
+            for (int y = 0; y < gridHeight; ++y)
+                for (int x = 0; x < gridWidth; ++x)
+                    newOccupancyMap[y*newGridWidth+x] = occupancyGrid[y*gridWidth+x];
+            gridWidth = newGridWidth;
+            gridHeight = newGridHeight;
+            occupancyGrid.swap(newOccupancyMap);
+        }
+
+        for (int y = 0; y < gridHeight; ++y)
+        {
+            for (int x = 0; x < gridWidth; ++x)
+            {
+                unsigned char& val = occupancyGrid[y*gridWidth+x];
+                
+                if (val) continue;
+                for (int yy = 0; yy < resolution; ++yy)
+                    for (int xx = 0; xx < resolution; ++xx)
+                        val |= gridMap.getCell(y*resolution+yy, x*resolution+xx) > 0.5;
+            }
+        }
+    }
+
+    bool checkPathValid(deque<TPoint2D>& path)
+    {
+        for (int i = 0; i < path.size(); ++i)
+        {
+            int x = path[i].x / resolution;
+            int y = path[i].y / resolution;
+
+            if (occupancyGrid[y*gridWidth+x])
+                return false;
+        }
+        return true;
+    }
+
+private:
+    int gridHeight;
+    int gridWidth;
+    int resolution;
+    std::vector<unsigned char> occupancyGrid;
+};
 
 int main(int argc, char* argv[]) {
     if (argc < 4)
@@ -115,7 +242,7 @@ int main(int argc, char* argv[]) {
         cout << "gridMap size: " << gridMap->getSizeX() << ' ' << gridMap->getSizeY() << '\n';
 
         // Perform path finding
-        std::deque<TPoint2D> path;
+        deque<TPoint2D> path;
         bool notFound;
         CPose2D origin(robx, roby, robphi);
         CPose2D target(gridMap->idx2x(890), gridMap->idx2y(270), robphi);
