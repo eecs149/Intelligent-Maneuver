@@ -21,6 +21,53 @@ using namespace mrpt::opengl;
 using namespace mrpt::gui;
 
 
+template<typename T>
+class Matrix
+{
+public:
+    Matrix(): w(0), h(0)
+    { }
+
+    Matrix(int height, int width, const T& val = T()):
+    w(width), h(height), data(w*h, val)
+    { }
+
+    const T& operator()(int y, int x) const
+    {
+        return data[y*this->w+x];
+    }
+    T& operator()(int y, int x)
+    {
+        return data[y*this->w+x];
+    }
+
+    void resize(int height, int width, const T& val = T())
+    {
+        vector<T> data(width*height, val);
+        int minHeight = min(height, h);
+        int minWidth = min(width, w);
+        for (int y = 0; y < minHeight; ++y)
+            for (int x = 0; x < minWidth; ++x)
+                data[y*width+x] = this->data[y*w+x];
+        w = width;
+        h = height;
+        this->data.swap(data);
+    }
+    int width() const
+    {
+        return w;
+    }
+    int height() const
+    {
+        return h;
+    }
+
+private:
+    int w;
+    int h;
+    vector<T> data;
+};
+
 
 struct Node
 {
@@ -35,11 +82,10 @@ struct Node
     Node(int x, int y, int g, int h, int parentX, int parentY):
     x(x), y(y), g(g), h(h), f(g+h), parentX(parentX), parentY(parentY)
     { }
-
     
     bool operator<(const Node& other) const
     {
-        return f < other.f;
+        return f > other.f;
     }
 };
 
@@ -47,51 +93,58 @@ class PathFinder
 {
 public:
     PathFinder(int resolution):
-    resolution(resolution), gridWidth(0), gridHeight(0)
+    resolution(resolution)
     {
+        num_occupied = 0;
     }
 
     bool findPath(const TPoint2D& start, const TPoint2D& end, deque<TPoint2D>& path)
     {
+        int startX = start.x / resolution;
+        int startY = start.y / resolution;
         int endX = end.x / resolution;
         int endY = end.y / resolution;
 
-        vector<int> parentX(gridWidth*gridHeight, -1);
-        vector<int> parentY(gridWidth*gridHeight, -1);
+        Matrix<int> parentX(occupancyGrid.width(), occupancyGrid.height(), -1);
+        Matrix<int> parentY(occupancyGrid.width(), occupancyGrid.height(), -1);
         priority_queue<Node> fringe;
-        fringe.push(Node(start.x/resolution, start.y/resolution, 0, 0, -1, -1));
+        fringe.push(Node(startX, startY, 0, 0, startX, startY));
+
+        printf("origin: %d,%d\tend: %d,%d\n", startX, startY, endX, endY);
 
         while (fringe.size())
         {
             Node pt = fringe.top();
             fringe.pop();
-            if (parentX[pt.y*gridWidth+pt.x] >= 0)
+
+            if (parentX(pt.y, pt.x) >= 0)
                 continue;
-            parentX[pt.y*gridWidth+pt.x] = pt.parentX;
-            parentY[pt.y*gridWidth+pt.x] = pt.parentY;
+            parentX(pt.y, pt.x) = pt.parentX;
+            parentY(pt.y, pt.x) = pt.parentY;
 
             if (pt.x == endX && pt.y == endY)
             {
                 int x = pt.x;
                 int y = pt.y;
-                while (parentX[y*gridWidth+x] >= 0)
+                path.clear();
+                while (y != startY || x != startX)
                 {
                     path.push_front(TPoint2D(x, y));
                     int oldX = x;
-                    x = parentX[y*gridWidth+x];
-                    y = parentY[y*gridWidth+oldX];
+                    x = parentX(y, x);
+                    y = parentY(y, oldX);
                 }
                 return true;
             }
 
-            if (pt.x > 0 && !occupancyGrid[pt.y*gridWidth+pt.x-1])
-                fringe.push(Node(pt.x-1, pt.y, pt.g+1, abs(endX-pt.x)+abs(endY-pt.y), pt.x, pt.y));
-            if (pt.y > 0 && !occupancyGrid[(pt.y-1)*gridWidth+pt.x])
-                fringe.push(Node(pt.x, pt.y-1, pt.g+1, abs(endX-pt.x)+abs(endY-pt.y), pt.x, pt.y));
-            if (pt.x+1 < gridWidth && !occupancyGrid[pt.y*gridWidth+pt.x+1])
-                fringe.push(Node(pt.x+1, pt.y, pt.g+1, abs(endX-pt.x)+abs(endY-pt.y), pt.x, pt.y));
-            if (pt.y+1 < gridHeight && !occupancyGrid[(pt.y+1)*gridWidth+pt.x])
-                fringe.push(Node(pt.x, pt.y+1, pt.g+1, abs(endX-pt.x)+abs(endY-pt.y), pt.x, pt.y));
+            if (pt.x > 0 && !occupancyGrid(pt.y, pt.x-1))
+                fringe.push(Node(pt.x-1, pt.y, pt.g+1, abs(endX-(pt.x-1))+abs(endY-pt.y), pt.x, pt.y));
+            if (pt.y > 0 && !occupancyGrid(pt.y-1, pt.x))
+                fringe.push(Node(pt.x, pt.y-1, pt.g+1, abs(endX-pt.x)+abs(endY-(pt.y-1)), pt.x, pt.y));
+            if (pt.x+1 < occupancyGrid.width() && !occupancyGrid(pt.y, pt.x+1))
+                fringe.push(Node(pt.x+1, pt.y, pt.g+1, abs(endX-(pt.x+1))+abs(endY-pt.y), pt.x, pt.y));
+            if (pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y+1, pt.x))
+                fringe.push(Node(pt.x, pt.y+1, pt.g+1, abs(endX-pt.x)+abs(endY-(pt.y+1)), pt.x, pt.y));
         }
 
         return false;
@@ -99,29 +152,34 @@ public:
 
     void update(const COccupancyGridMap2D& gridMap)
     {
-        if (gridMap.getSizeX() > gridWidth*resolution || gridMap.getSizeY() > gridHeight*resolution)
-        {
-            int newGridHeight = gridMap.getSizeY() / resolution;
-            int newGridWidth = gridMap.getSizeX() / resolution;
-            vector<unsigned char> newOccupancyMap(newGridHeight * newGridWidth, 0);
-            for (int y = 0; y < gridHeight; ++y)
-                for (int x = 0; x < gridWidth; ++x)
-                    newOccupancyMap[y*newGridWidth+x] = occupancyGrid[y*gridWidth+x];
-            gridWidth = newGridWidth;
-            gridHeight = newGridHeight;
-            occupancyGrid.swap(newOccupancyMap);
-        }
+        update(gridMap, 0, 0, gridMap.getSizeX(), gridMap.getSizeY());
+    }
 
-        for (int y = 0; y < gridHeight; ++y)
+    void update(const COccupancyGridMap2D& gridMap, int startX, int startY, int endX, int endY)
+    {
+        if (gridMap.getSizeY() > occupancyGrid.height()*resolution || gridMap.getSizeX() > occupancyGrid.width())
+            occupancyGrid.resize(gridMap.getSizeY() / resolution, gridMap.getSizeX() / resolution);
+
+        startX = max(startX / resolution, 0);
+        startY = max(startY / resolution, 0);
+        endX = min(endX / resolution, occupancyGrid.width());
+        endY = min(endY / resolution, occupancyGrid.height());
+        for (int y = startY; y < endY; ++y)
         {
-            for (int x = 0; x < gridWidth; ++x)
+            for (int x = startX; x < endX; ++x)
             {
-                unsigned char& val = occupancyGrid[y*gridWidth+x];
+                unsigned char& val = occupancyGrid(y, x);
                 
                 if (val) continue;
                 for (int yy = 0; yy < resolution; ++yy)
+                {
                     for (int xx = 0; xx < resolution; ++xx)
-                        val |= gridMap.getCell(y*resolution+yy, x*resolution+xx) > 0.5;
+                    {
+                        double pOccupied = gridMap.getCell(x*resolution+xx, y*resolution+yy);
+                        val |= pOccupied < 0.5;
+                    }
+                }
+
             }
         }
     }
@@ -133,17 +191,16 @@ public:
             int x = path[i].x / resolution;
             int y = path[i].y / resolution;
 
-            if (occupancyGrid[y*gridWidth+x])
+            if (occupancyGrid(y, x))
                 return false;
         }
         return true;
     }
 
 private:
-    int gridHeight;
-    int gridWidth;
+    Matrix<unsigned char> occupancyGrid;
     int resolution;
-    std::vector<unsigned char> occupancyGrid;
+    int num_occupied;
 };
 
 int main(int argc, char* argv[]) {
@@ -180,6 +237,10 @@ int main(int argc, char* argv[]) {
 
     // pathfinding
     CPathPlanningCircularRobot pathPlanner;
+    pathPlanner.robotRadius = 0.6;
+    pathPlanner.occupancyThreshold = 0.49;
+    PathFinder pathFinder(8);
+    deque<TPoint2D> path;
 
     while (laserLog.good()) {
         double f;
@@ -242,21 +303,27 @@ int main(int argc, char* argv[]) {
         cout << "gridMap size: " << gridMap->getSizeX() << ' ' << gridMap->getSizeY() << '\n';
 
         // Perform path finding
-        deque<TPoint2D> path;
-        bool notFound;
         CPose2D origin(robx, roby, robphi);
         CPose2D target(gridMap->idx2x(890), gridMap->idx2y(270), robphi);
-        pathPlanner.computePath(*gridMap, origin, target, path, notFound);
-        cout << "path: " << notFound << ' ' << path.size();
-        if (!notFound)
+        pathFinder.update(*gridMap, gridRobX - 100, gridRobY - 100, gridRobX + 100, gridRobY + 100);
+        bool pathFound = true;
+/*        if (path.size() == 0)
+            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
+        else if (pathFinder.checkPathValid(path) == 0)
         {
-            cout << " [";
-            for (int i = 0; i < path.size(); ++i)
-                cout << path[i].asString() << ' ';
-            cout << ']';
+            printf("path no longer valid, repathing.\n");
+            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
         }
+        */
+        pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
+        printf("pathFound: %d\tpath length: %d\n", pathFound, path.size());
+        /*
+        cout << " [";
+        for (int i = 0; i < path.size(); ++i)
+            cout << path[i].asString() << ' ';
+        cout << ']';
         cout << '\n';
-
+        */
 
 
 
