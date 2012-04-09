@@ -282,7 +282,7 @@ static void navdata_write (int8_t *buffer, int32_t len)
 
             navdata_udp_addr.sin_family      = AF_INET;
             navdata_udp_addr.sin_addr.s_addr = INADDR_ANY;
-            navdata_udp_addr.sin_port        = htons(NAVDATA_PORT + 100);
+            navdata_udp_addr.sin_port        = htons(NAVDATA_PORT);
 
             navdata_udp_socket = socket( AF_INET, SOCK_DGRAM, 0 );
 
@@ -331,111 +331,96 @@ static void navdata_open_server (void)
 
 static void* navdata_loop(void *arg)
 {
-	uint8_t msg[NAVDATA_BUFFER_SIZE];
+    uint8_t msg[NAVDATA_BUFFER_SIZE];
     navdata_unpacked_t navdata_unpacked;
     unsigned int cks, navdata_cks, sequence = NAVDATA_SEQUENCE_DEFAULT-1;
-    int sockfd = -1, addr_in_size;
-	struct sockaddr_in *my_addr, *from;
+    int addr_in_size;
+    struct sockaddr_in *from;
 
-	INFO("NAVDATA thread starting (thread=%d)...\n", (int)pthread_self());
+    INFO("NAVDATA thread starting (thread=%d)...\n", (int)pthread_self());
 
     navdata_open_server();
 
-	addr_in_size = sizeof(struct sockaddr_in);
+    addr_in_size = sizeof(struct sockaddr_in);
 
     navdata_t* navdata = (navdata_t*) &msg[0];
 
-	from = (struct sockaddr_in *)malloc(addr_in_size);
-	my_addr = (struct sockaddr_in *)malloc(addr_in_size);
+    from = (struct sockaddr_in *)malloc(addr_in_size);
     assert(from);
-    assert(my_addr);
 
-	memset((char *)my_addr,(char)0,addr_in_size);
-	my_addr->sin_family = AF_INET;
-	my_addr->sin_addr.s_addr = htonl(INADDR_ANY);
-	my_addr->sin_port = htons( NAVDATA_PORT );
+    {
+        struct timeval tv;
+        // 1 second timeout
+        tv.tv_sec   = 1;
+        tv.tv_usec  = 0;
+        setsockopt( navdata_udp_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    }
 
-	if((sockfd = socket (AF_INET, SOCK_DGRAM, 0)) < 0){
-        INFO ("socket: %s\n", strerror(errno));
-        goto fail;
-	};
+    INFO("Ready to receive\n");
+    while ( nav_thread_alive ) {
+        int size;
+        size = recvfrom (navdata_udp_socket, &msg[0], NAVDATA_BUFFER_SIZE, 0, (struct sockaddr *)from,
+                 (socklen_t *)&addr_in_size);
 
-	if(bind(sockfd, (struct sockaddr *)my_addr, addr_in_size) < 0){
-        INFO ("bind: %s\n", strerror(errno));
-        goto fail;
-	};
+        if( size == 0 )
+        {
+            INFO ("Lost connection \n");
+            navdata_open_server();
+            sequence = NAVDATA_SEQUENCE_DEFAULT-1;
+        }
+        else if (size > 0)
+        {
+            INFO("navdata:recvfrom success: %d\n", size);
+        }
+        else 
+        {
+            INFO("navdata:recvfrom: %s\n", strerror(errno));
+        }
+        if( navdata->header == NAVDATA_HEADER )
+        {
+            mykonos_state = navdata->mykonos_state;
+		    
+            if( get_mask_from_state(navdata->mykonos_state, MYKONOS_COM_WATCHDOG_MASK) ) 
+            { 
+                sequence = NAVDATA_SEQUENCE_DEFAULT-1; 
 
-	{
-		struct timeval tv;
-		// 1 second timeout
-		tv.tv_sec   = 1;
-		tv.tv_usec  = 0;
-		setsockopt( sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-	}
+                if( get_mask_from_state(navdata->mykonos_state, MYKONOS_NAVDATA_BOOTSTRAP) == FALSE ) 
+                {
+                    const char cmds[] = "AT*COMWDG\r";
+                        at_write ((int8_t*)cmds, strlen( cmds ));
+                }
+            } 
 
-	INFO("Ready to receive\n");
-	while ( nav_thread_alive ) {
-		int size;
-		size = recvfrom (sockfd, &msg[0], NAVDATA_BUFFER_SIZE, 0, (struct sockaddr *)from,
-                         (socklen_t *)&addr_in_size);
+            if( navdata->sequence > sequence ) 
+                { 
+                    if ( get_mask_from_state( mykonos_state, MYKONOS_NAVDATA_DEMO_MASK ))
+                        {
+                            mykonos_navdata_unpack_all(&navdata_unpacked, navdata, &navdata_cks);
+                            cks = navdata_compute_cks( &msg[0], size - sizeof(navdata_cks_t) );
 
-		if( size <= 0 )
-            {
-                INFO ("Lost connection \n");
-                navdata_open_server();
-                sequence = NAVDATA_SEQUENCE_DEFAULT-1;
-            }
-		if( navdata->header == NAVDATA_HEADER )
-            {
-                mykonos_state = navdata->mykonos_state;
-			
-                if( get_mask_from_state(navdata->mykonos_state, MYKONOS_COM_WATCHDOG_MASK) ) 
-                    { 
-                        INFO ("[NAVDATA] Detect com watchdog\n");
-                        sequence = NAVDATA_SEQUENCE_DEFAULT-1; 
+                            if( cks == navdata_cks )
+                                {
+                                    //INFO ("Unpack navdata\n");
+                                }
+                        }
+                } 
+            else 
+                { 
+                    INFO ("[Navdata] Sequence pb : %d (distant) / %d (local)\n", navdata->sequence, sequence); 
+                } 
 
-                        if( get_mask_from_state(navdata->mykonos_state, MYKONOS_NAVDATA_BOOTSTRAP) == FALSE ) 
-                            {
-                                const char cmds[] = "AT*COMWDG\r";
-                                at_write ((int8_t*)cmds, strlen( cmds ));
-                            }
-                    } 
+            sequence = navdata->sequence;
+        }
 
-                if( navdata->sequence > sequence ) 
-                    { 
-                        if ( get_mask_from_state( mykonos_state, MYKONOS_NAVDATA_DEMO_MASK ))
-                            {
-                                mykonos_navdata_unpack_all(&navdata_unpacked, navdata, &navdata_cks);
-                                cks = navdata_compute_cks( &msg[0], size - sizeof(navdata_cks_t) );
-
-                                if( cks == navdata_cks )
-                                    {
-                                        //INFO ("Unpack navdata\n");
-                                    }
-                            }
-                    } 
-                else 
-                    { 
-                        INFO ("[Navdata] Sequence pb : %d (distant) / %d (local)\n", navdata->sequence, sequence); 
-                    } 
-
-                sequence = navdata->sequence;
-            }
-
-            //velocities[0] = navdata_unpacked.navdata_demo.vx;
-            //velocities[1] = navdata_unpacked.navdata_demo.vy;
-            //velocities[2] = navdata_unpacked.navdata_demo.vz;
-            //angles[0] = navdata_unpacked.navdata_demo.theta;
-            //angles[1] = navdata_unpacked.navdata_demo.phi;
-            //angles[2] = navdata_unpacked.navdata_demo.psi;
-	}
+        //velocities[0] = navdata_unpacked.navdata_demo.vx;
+        //velocities[1] = navdata_unpacked.navdata_demo.vy;
+        //velocities[2] = navdata_unpacked.navdata_demo.vz;
+        //angles[0] = navdata_unpacked.navdata_demo.theta;
+        //angles[1] = navdata_unpacked.navdata_demo.phi;
+        //angles[2] = navdata_unpacked.navdata_demo.psi;
+    }
  fail:
     free(from);
-    free(my_addr);
-
-    if (sockfd >= 0){
-        close(sockfd);
-    }
 
     if (navdata_udp_socket >= 0){
         close(navdata_udp_socket);

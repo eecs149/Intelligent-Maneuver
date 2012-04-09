@@ -12,6 +12,11 @@
 #include <unistd.h>
 #include <pthread.h>
 
+/* Speed and turn settings */
+#define MAX_ANGLE   0.5 //in radians
+#define MAX_VZ      1500 //in mm/s
+#define MAX_VYAW    6.0 //in rad/s
+
 /* native video stream dimensions */
 #define VIDEO_WIDTH   176
 #define VIDEO_HEIGHT  144

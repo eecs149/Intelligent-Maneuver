@@ -75,10 +75,11 @@ static int at_udp_socket  = -1;
 static int overflow = 0;
 static unsigned long ocurrent = 0;
 
-static void send_command(int nb_sequence);
+static int send_command(int nb_sequence);
 static void* at_cmds_loop(void *arg);
 static void boot_drone(void);
 static unsigned long get_time_ms(void);
+static unsigned int nb_sequence = 0;
 
 static inline int get_mask_from_state( uint32_t state, uint32_t mask )
 {
@@ -95,11 +96,14 @@ static unsigned long get_time_ms(void)
 
 static void boot_drone(void)
 {
-	const char cmds[] = "AT*CONFIG=\"general:navdata_demo\",\"TRUE\"\r";
+    char str[AT_BUFFER_SIZE];
+    unsigned long current, deadline;
+    memset (str, 0, AT_BUFFER_SIZE); 
+    sprintf (str, "AT*CONFIG=%d,\"general:navdata_demo\",\"TRUE\"\r", nb_sequence++);
 
 	if ( get_mask_from_state( mykonos_state,
 							  MYKONOS_NAVDATA_BOOTSTRAP )) {
-		at_write ((int8_t*)cmds, strlen (cmds));
+		at_write ((int8_t*)str, strlen (str));
 
 		int retry = 20;
 		int bcontinue = TRUE;
@@ -112,9 +116,8 @@ static void boot_drone(void)
 					}
 				}
 				else {
-					char str[AT_BUFFER_SIZE];
 					memset (str, 0, AT_BUFFER_SIZE); 
-					sprintf (str, "AT*CTRL=%d,%d\r", ACK_CONTROL_MODE, 0);
+					sprintf (str, "AT*CTRL=%d,%d,%d\r", nb_sequence++, ACK_CONTROL_MODE, 0);
 					at_write ((int8_t*)str, strlen (str));
 
 					if ( !get_mask_from_state( mykonos_state, MYKONOS_COMMAND_MASK )) {
@@ -126,12 +129,42 @@ static void boot_drone(void)
 				retry--;
 		}
 	}
+
+        // compute next loop iteration deadline
+        deadline = get_time_ms() + MYKONOS_REFRESH_MS;
+
+        memset (str, 0, AT_BUFFER_SIZE); 
+        sprintf(str, "AT*CONFIG=%d,\"control:euler_angle_max\",\"%.2f\"\r", nb_sequence++, MAX_ANGLE);
+        at_write ((int8_t*)str, strlen (str));
+
+	// sleep until deadline
+	current = get_time_ms();
+	if (current < deadline) {
+            usleep(1000*(deadline-current));
+	}
+
+        deadline = get_time_ms() + MYKONOS_REFRESH_MS;
+        memset (str, 0, AT_BUFFER_SIZE); 
+        sprintf(str, "AT*CONFIG=%d,\"control:control_vz_max\",\"%d\"\r", nb_sequence++, MAX_VZ);
+        at_write ((int8_t*)str, strlen (str));
+	current = get_time_ms();
+	if (current < deadline) {
+            usleep(1000*(deadline-current));
+	}
+        
+        deadline = get_time_ms() + MYKONOS_REFRESH_MS;
+        memset (str, 0, AT_BUFFER_SIZE); 
+        sprintf(str, "AT*CONFIG=%d,\"control:control_yaw\",\"%.2f\"\r", nb_sequence++, MAX_VYAW);
+        at_write ((int8_t*)str, strlen (str));
+	current = get_time_ms();
+	if (current < deadline) {
+            usleep(1000*(deadline-current));
+	}
 }
 
 static void* at_cmds_loop(void *arg)
 {
 	unsigned long current, deadline;
-	unsigned int nb_sequence = 0;
 
 	INFO("AT commands thread starting (thread=%d)...\n", (int)pthread_self());
 
@@ -151,7 +184,7 @@ static void* at_cmds_loop(void *arg)
 		deadline = get_time_ms() + MYKONOS_REFRESH_MS;
 
 		// send pilot command
-		send_command( nb_sequence++ );
+		nb_sequence = send_command( nb_sequence );
 
 		// sleep until deadline
 		current = get_time_ms();
@@ -164,7 +197,7 @@ static void* at_cmds_loop(void *arg)
     return NULL;
 }
 
-static void send_command(int nb_sequence)
+static int send_command(int nb_sequence)
 {
 	unsigned long current;
  	char str[AT_BUFFER_SIZE];
@@ -174,8 +207,8 @@ static void send_command(int nb_sequence)
 	current = get_time_ms();
 
 	pthread_mutex_lock( &at_cmd_lock );
-	snprintf(str, AT_BUFFER_SIZE, "AT*SEQ=%d\rAT*RADGP=%d,%d,%d,%d\rAT*REF=%d\r",
-			nb_sequence, radiogp_cmd.pitch, radiogp_cmd.roll, radiogp_cmd.gaz, radiogp_cmd.yaw, user_input);
+	snprintf(str, AT_BUFFER_SIZE, "AT*PCMD=%d,%d,%d,%d,%d,%d\rAT*REF=%d,%d",
+            nb_sequence, 1, radiogp_cmd.roll, radiogp_cmd.pitch, radiogp_cmd.gaz, radiogp_cmd.yaw, nb_sequence+1, user_input);
    pthread_mutex_unlock( &at_cmd_lock );
    
    //Send AT command	
@@ -195,6 +228,8 @@ static void send_command(int nb_sequence)
       pthread_mutex_unlock( &at_cmd_lock );
 		overflow = 0;
 	}
+
+        return nb_sequence+2;
 }
 
 void at_write (int8_t *buffer, int32_t len)
@@ -210,7 +245,7 @@ void at_write (int8_t *buffer, int32_t len)
 
 		at_udp_addr.sin_family      = AF_INET;
 		at_udp_addr.sin_addr.s_addr = INADDR_ANY;
-		at_udp_addr.sin_port        = htons( AT_PORT + 100 );
+		at_udp_addr.sin_port        = htons( AT_PORT );
 
 		at_udp_socket = socket( AF_INET, SOCK_DGRAM, 0 );
 
@@ -244,6 +279,13 @@ void at_write (int8_t *buffer, int32_t len)
 		to.sin_port         = htons (AT_PORT);
 
 		res = sendto( at_udp_socket, (char*)buffer, len, 0, (struct sockaddr*)&to, sizeof(to) );
+            if (res < 0) {
+                INFO("sendto: %s\n", strerror(errno));
+            }
+            else {
+                INFO("sendto success: %d\n", res);
+            }
+
 	}
    pthread_mutex_unlock( &at_cmd_lock );
 }
@@ -293,8 +335,11 @@ void at_run( void )
 */
 void at_set_flat_trim( void )
 {
-	const char cmd[] = "AT*FTRIM\r";
-	at_write ((int8_t*)cmd, strlen (cmd));
+    char str[AT_BUFFER_SIZE];
+    memset (str, 0, AT_BUFFER_SIZE); 
+
+    snprintf(str, AT_BUFFER_SIZE, "AT*FTRIM=%d,\r", nb_sequence++);
+    at_write ((int8_t*)str, strlen (str));
 }
 
 /************* at_ui_pad_start_pressed ****************
@@ -313,21 +358,21 @@ void at_ui_pad_start_pressed( void )
 /************* at_set_radiogp_input ****************
 * Description : Fill struct radiogp_cmd, 
 * used with at_cmds_loop function.
-* pitch : y-axis (rad) (-25000, +25000)  
-* roll : x-axis (rad) (-25000, +25000) 
-* gaz :  altitude (mm/s) (-25000, +25000)
-* yaw : z-axis (rad/s) (-25000, +25000)
+* pitch : y-axis (rad) (-1, +1)  
+* roll : x-axis (rad) (-1, +1) 
+* gaz :  altitude (mm/s) (-1, +1)
+* yaw : z-axis (rad/s) (-1, +1)
 */
-void at_set_radiogp_input( int32_t pitch, int32_t roll, int32_t gaz, int32_t yaw )
+void at_set_radiogp_input( float pitch, float roll, float gaz, float yaw )
 {
 	if (!at_thread)
 		return;
 	
    pthread_mutex_lock( &at_cmd_lock );
-	radiogp_cmd.pitch = pitch;
-	radiogp_cmd.roll = roll;
-	radiogp_cmd.gaz = gaz;
-	radiogp_cmd.yaw = yaw;
+	radiogp_cmd.pitch = *(int*)(&pitch);
+	radiogp_cmd.roll = *(int*)(&roll);
+	radiogp_cmd.gaz = *(int*)(&gaz);
+	radiogp_cmd.yaw = *(int*)(&yaw);
 	pthread_mutex_unlock( &at_cmd_lock );
 }
 
