@@ -95,7 +95,6 @@ public:
     PathFinder(int resolution):
     resolution(resolution)
     {
-        num_occupied = 0;
     }
 
     bool findPath(const TPoint2D& start, const TPoint2D& end, deque<TPoint2D>& path)
@@ -200,7 +199,6 @@ public:
 private:
     Matrix<unsigned char> occupancyGrid;
     int resolution;
-    int num_occupied;
 };
 
 int main(int argc, char* argv[]) {
