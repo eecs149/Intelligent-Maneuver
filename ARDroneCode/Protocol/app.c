@@ -24,12 +24,12 @@ void appInit()
 {
 	int status;
 
-   //Run AT command process
-   at_run();
-   
    //Run Navdata process
    navdata_run();
 
+   //Run AT command process
+   at_run();
+   
    //Run Stream process
    //stream_run();
 

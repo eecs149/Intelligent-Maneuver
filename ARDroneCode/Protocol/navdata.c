@@ -368,13 +368,13 @@ static void* navdata_loop(void *arg)
             navdata_open_server();
             sequence = NAVDATA_SEQUENCE_DEFAULT-1;
         }
-        else if (size > 0)
+        else if (size < 0)
         {
-            INFO("navdata:recvfrom success: %d\n", size);
+            //INFO("navdata:recvfrom: %s\n", strerror(errno));
         }
         else 
+            INFO("navdata:recvfrom success %d\n", size);
         {
-            INFO("navdata:recvfrom: %s\n", strerror(errno));
         }
         if( navdata->header == NAVDATA_HEADER )
         {
@@ -411,13 +411,19 @@ static void* navdata_loop(void *arg)
 
             sequence = navdata->sequence;
         }
+       FILE *file;
+       file = fopen("sensor_data_test.txt","a+");
 
-        //velocities[0] = navdata_unpacked.navdata_demo.vx;
-        //velocities[1] = navdata_unpacked.navdata_demo.vy;
-        //velocities[2] = navdata_unpacked.navdata_demo.vz;
-        //angles[0] = navdata_unpacked.navdata_demo.theta;
-        //angles[1] = navdata_unpacked.navdata_demo.phi;
-        //angles[2] = navdata_unpacked.navdata_demo.psi;
+        velocities[0] = navdata_unpacked.navdata_demo.vx;
+        velocities[1] = navdata_unpacked.navdata_demo.vy;
+        velocities[2] = navdata_unpacked.navdata_demo.vz;
+        angles[0] = navdata_unpacked.navdata_demo.theta;
+        angles[1] = navdata_unpacked.navdata_demo.phi;
+        angles[2] = navdata_unpacked.navdata_demo.psi;
+
+       fprintf(file, "Orientation   : [Theta] %4.3f  [Phi] %4.3f  [Psi] %4.3f\n",angles[0],angles[1],angles[2]);
+       fprintf(file, "Speed         : [vX] %4.3f  [vY] %4.3f  [vZ] %4.3f\n",velocities[0],velocities[1],velocities[2]);
+       fclose(file);
     }
  fail:
     free(from);

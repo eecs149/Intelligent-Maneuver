@@ -128,38 +128,34 @@ static void boot_drone(void)
 				sleep (1);
 				retry--;
 		}
-	}
 
-        // compute next loop iteration deadline
-        deadline = get_time_ms() + MYKONOS_REFRESH_MS;
+               deadline = get_time_ms() + MYKONOS_REFRESH_MS;
+               memset (str, 0, AT_BUFFER_SIZE); 
+               sprintf(str, "AT*CONFIG=%d,\"control:euler_angle_max\",\"%.2f\"\r", nb_sequence++, MAX_ANGLE);
+               at_write ((int8_t*)str, strlen (str));
+               current = get_time_ms();
+               if (current < deadline) {
+                   usleep(1000*(deadline-current));
+               }
 
-        memset (str, 0, AT_BUFFER_SIZE); 
-        sprintf(str, "AT*CONFIG=%d,\"control:euler_angle_max\",\"%.2f\"\r", nb_sequence++, MAX_ANGLE);
-        at_write ((int8_t*)str, strlen (str));
-
-	// sleep until deadline
-	current = get_time_ms();
-	if (current < deadline) {
-            usleep(1000*(deadline-current));
-	}
-
-        deadline = get_time_ms() + MYKONOS_REFRESH_MS;
-        memset (str, 0, AT_BUFFER_SIZE); 
-        sprintf(str, "AT*CONFIG=%d,\"control:control_vz_max\",\"%d\"\r", nb_sequence++, MAX_VZ);
-        at_write ((int8_t*)str, strlen (str));
-	current = get_time_ms();
-	if (current < deadline) {
-            usleep(1000*(deadline-current));
-	}
-        
-        deadline = get_time_ms() + MYKONOS_REFRESH_MS;
-        memset (str, 0, AT_BUFFER_SIZE); 
-        sprintf(str, "AT*CONFIG=%d,\"control:control_yaw\",\"%.2f\"\r", nb_sequence++, MAX_VYAW);
-        at_write ((int8_t*)str, strlen (str));
-	current = get_time_ms();
-	if (current < deadline) {
-            usleep(1000*(deadline-current));
-	}
+               deadline = get_time_ms() + MYKONOS_REFRESH_MS;
+               memset (str, 0, AT_BUFFER_SIZE); 
+               sprintf(str, "AT*CONFIG=%d,\"control:control_vz_max\",\"%d\"\r", nb_sequence++, MAX_VZ);
+               at_write ((int8_t*)str, strlen (str));
+               current = get_time_ms();
+               if (current < deadline) {
+                   usleep(1000*(deadline-current));
+               }
+               
+               deadline = get_time_ms() + MYKONOS_REFRESH_MS;
+               memset (str, 0, AT_BUFFER_SIZE); 
+               sprintf(str, "AT*CONFIG=%d,\"control:control_yaw\",\"%.2f\"\r", nb_sequence++, MAX_VYAW);
+               at_write ((int8_t*)str, strlen (str));
+               current = get_time_ms();
+               if (current < deadline) {
+                   usleep(1000*(deadline-current));
+               }
+       }
 }
 
 static void* at_cmds_loop(void *arg)
@@ -171,7 +167,7 @@ static void* at_cmds_loop(void *arg)
 	user_input = MYKONOS_NO_TRIM;
 	ocurrent = get_time_ms();
 
-    while (at_thread_alive) {
+        while (at_thread_alive) {
 
 		if (get_mask_from_state(mykonos_state, MYKONOS_NAVDATA_BOOTSTRAP)) {
 			INFO("attempting to boot drone...\n");
@@ -279,12 +275,12 @@ void at_write (int8_t *buffer, int32_t len)
 		to.sin_port         = htons (AT_PORT);
 
 		res = sendto( at_udp_socket, (char*)buffer, len, 0, (struct sockaddr*)&to, sizeof(to) );
-            if (res < 0) {
-                INFO("sendto: %s\n", strerror(errno));
-            }
-            else {
-                INFO("sendto success: %d\n", res);
-            }
+            //if (res < 0) {
+            //    INFO("sendto: %s\n", strerror(errno));
+            //}
+            //else {
+            //    INFO("sendto success: %d\n", res);
+            //}
 
 	}
    pthread_mutex_unlock( &at_cmd_lock );
