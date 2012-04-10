@@ -28,60 +28,69 @@ public:
     Matrix(): w(0), h(0)
     { }
 
-    Matrix(int height, int width, const T& val = T()):
+    Matrix(unsigned height, unsigned width, const T& val = T()):
     w(width), h(height), data(w*h, val)
     { }
 
-    const T& operator()(int y, int x) const
+    const T& operator()(unsigned y, unsigned x) const
     {
         return data[y*this->w+x];
     }
-    T& operator()(int y, int x)
+    T& operator()(unsigned y, unsigned x)
     {
         return data[y*this->w+x];
     }
 
-    void resize(int height, int width, const T& val = T())
+    void resize(unsigned height, unsigned width, const T& val = T())
     {
         vector<T> data(width*height, val);
-        int minHeight = min(height, h);
-        int minWidth = min(width, w);
-        for (int y = 0; y < minHeight; ++y)
-            for (int x = 0; x < minWidth; ++x)
+        unsigned minHeight = min(height, h);
+        unsigned minWidth = min(width, w);
+        for (unsigned y = 0; y < minHeight; ++y)
+            for (unsigned x = 0; x < minWidth; ++x)
                 data[y*width+x] = this->data[y*w+x];
         w = width;
         h = height;
         this->data.swap(data);
     }
-    int width() const
+    unsigned width() const
     {
         return w;
     }
-    int height() const
+    unsigned height() const
     {
         return h;
     }
 
 private:
-    int w;
-    int h;
+    unsigned w;
+    unsigned h;
     vector<T> data;
 };
 
 
 struct Node
 {
-    int x;
-    int y;
-    int g;
-    int h;
-    int f;
-    int parentX;
-    int parentY;
+    unsigned x;
+    unsigned y;
+    unsigned g;
+    unsigned h;
+    unsigned f;
+    unsigned parentX;
+    unsigned parentY;
 
-    Node(int x, int y, int g, int h, int parentX, int parentY):
-    x(x), y(y), g(g), h(h), f(g+h), parentX(parentX), parentY(parentY)
-    { }
+    static unsigned endX;
+    static unsigned endY;
+
+    Node(unsigned x, unsigned y, unsigned g, unsigned parentX, unsigned parentY):
+    x(x), y(y), g(g), parentX(parentX), parentY(parentY)
+    {
+        int dx = abs((int)endX - (int)x);
+        int dy = abs((int)endY - (int)y);
+        int diag_steps = min(dx, dy);
+        h = diag_steps * 14 + (max(dx, dy) - diag_steps) * 10;
+        f = g + h;
+    }
     
     bool operator<(const Node& other) const
     {
@@ -89,10 +98,13 @@ struct Node
     }
 };
 
+unsigned Node::endX;
+unsigned Node::endY;
+
 class PathFinder
 {
 public:
-    PathFinder(int resolution):
+    PathFinder(unsigned resolution):
     resolution(resolution)
     {
     }
@@ -104,10 +116,13 @@ public:
         int endX = end.x / resolution;
         int endY = end.y / resolution;
 
+        Node::endX = endX;
+        Node::endY = endY;
+
         Matrix<int> parentX(occupancyGrid.width(), occupancyGrid.height(), -1);
         Matrix<int> parentY(occupancyGrid.width(), occupancyGrid.height(), -1);
         priority_queue<Node> fringe;
-        fringe.push(Node(startX, startY, 0, 0, startX, startY));
+        fringe.push(Node(startX, startY, 0, startX, startY));
 
         printf("origin: %d,%d\tend: %d,%d\n", startX, startY, endX, endY);
 
@@ -136,14 +151,30 @@ public:
                 return true;
             }
 
+            // left
             if (pt.x > 0 && !occupancyGrid(pt.y, pt.x-1))
-                fringe.push(Node(pt.x-1, pt.y, pt.g+1, abs(endX-(pt.x-1))+abs(endY-pt.y), pt.x, pt.y));
+                fringe.push(Node(pt.x-1, pt.y, pt.g+10, pt.x, pt.y));
+            // up
             if (pt.y > 0 && !occupancyGrid(pt.y-1, pt.x))
-                fringe.push(Node(pt.x, pt.y-1, pt.g+1, abs(endX-pt.x)+abs(endY-(pt.y-1)), pt.x, pt.y));
+                fringe.push(Node(pt.x, pt.y-1, pt.g+10, pt.x, pt.y));
+            // right
             if (pt.x+1 < occupancyGrid.width() && !occupancyGrid(pt.y, pt.x+1))
-                fringe.push(Node(pt.x+1, pt.y, pt.g+1, abs(endX-(pt.x+1))+abs(endY-pt.y), pt.x, pt.y));
+                fringe.push(Node(pt.x+1, pt.y, pt.g+10, pt.x, pt.y));
+            // down
             if (pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y+1, pt.x))
-                fringe.push(Node(pt.x, pt.y+1, pt.g+1, abs(endX-pt.x)+abs(endY-(pt.y+1)), pt.x, pt.y));
+                fringe.push(Node(pt.x, pt.y+1, pt.g+10, pt.x, pt.y));
+            // upleft
+            if (pt.x > 0 && pt.y > 0 && !occupancyGrid(pt.y-1, pt.x-1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x-1))
+                fringe.push(Node(pt.x-1, pt.y-1, pt.g+14, pt.x, pt.y));
+            // downleft
+            if (pt.x > 0 && pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y-1, pt.x-1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x-1))
+                fringe.push(Node(pt.x-1, pt.y+1, pt.g+14, pt.x, pt.y));
+            // upright
+            if (pt.x+1 < occupancyGrid.width() && pt.y > 0 && !occupancyGrid(pt.y-1, pt.x+1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x+1))
+                fringe.push(Node(pt.x+1, pt.y-1, pt.g+14, pt.x, pt.y));
+            // downright
+            if (pt.x+1 < occupancyGrid.width() && pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y+1, pt.x+1) && !occupancyGrid(pt.y+1, pt.x) && !occupancyGrid(pt.y, pt.x+1))
+                fringe.push(Node(pt.x+1, pt.y+1, pt.g+14, pt.x, pt.y));
         }
 
         return false;
@@ -159,8 +190,8 @@ public:
         if (gridMap.getSizeY() > occupancyGrid.height()*resolution || gridMap.getSizeX() > occupancyGrid.width())
             occupancyGrid.resize(gridMap.getSizeY() / resolution, gridMap.getSizeX() / resolution);
 
-        startX = max(startX / resolution, 0);
-        startY = max(startY / resolution, 0);
+        startX = max(startX / (int)resolution, 0);
+        startY = max(startY / (int)resolution, 0);
         endX = min(endX / resolution, occupancyGrid.width());
         endY = min(endY / resolution, occupancyGrid.height());
         for (int y = startY; y < endY; ++y)
@@ -170,9 +201,9 @@ public:
                 unsigned char& val = occupancyGrid(y, x);
                 
                 if (val) continue;
-                for (int yy = 0; yy < resolution; ++yy)
+                for (unsigned yy = 0; yy < resolution; ++yy)
                 {
-                    for (int xx = 0; xx < resolution; ++xx)
+                    for (unsigned xx = 0; xx < resolution; ++xx)
                     {
                         double pOccupied = gridMap.getCell(x*resolution+xx, y*resolution+yy);
                         val |= pOccupied < 0.5;
@@ -185,7 +216,7 @@ public:
 
     bool checkPathValid(deque<TPoint2D>& path)
     {
-        for (int i = 0; i < path.size(); ++i)
+        for (unsigned i = 0; i < path.size(); ++i)
         {
             int x = path[i].x / resolution;
             int y = path[i].y / resolution;
@@ -198,7 +229,7 @@ public:
 
 private:
     Matrix<unsigned char> occupancyGrid;
-    int resolution;
+    unsigned resolution;
 };
 
 int main(int argc, char* argv[]) {
