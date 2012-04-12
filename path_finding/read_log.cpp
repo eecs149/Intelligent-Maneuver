@@ -9,8 +9,6 @@
 #include <mrpt/obs.h>
 #include <mrpt/slam.h>
 #include <mrpt/poses.h> 
-#include <mrpt/opengl.h>
-#include <mrpt/gui.h>
 
 #include <SFML/Graphics.hpp>
 
@@ -19,8 +17,6 @@ using namespace mrpt;
 using namespace mrpt::utils;
 using namespace mrpt::system;
 using namespace mrpt::slam;
-using namespace mrpt::opengl;
-using namespace mrpt::gui;
 
 
 template<typename T>
@@ -250,8 +246,6 @@ int main(int argc, char* argv[]) {
     ifstream laserLog, robotLog;
     string laserLine, robotLine;
     CConfigFile iniFile(argv[3]); // configurations file
-    size_t rawlogEntry = 0;
-    bool end = false;
     double accumX = 0.0, accumY = 0.0, accumPhi = 0.0;
 
 
@@ -361,8 +355,8 @@ int main(int argc, char* argv[]) {
         // draw the grayscale probability map
         sf::Image image;
         image.create(gridMap->getSizeX(), gridMap->getSizeY());
-        for (int y = 0; y < gridMap->getSizeY(); ++y)
-            for (int x = 0; x < gridMap->getSizeX(); ++x)
+        for (unsigned y = 0; y < gridMap->getSizeY(); ++y)
+            for (unsigned x = 0; x < gridMap->getSizeX(); ++x)
             {
                 sf::Uint8 col = gridMap->getCell(x, y) * 255;
                 image.setPixel(x, y, sf::Color(col, col, col));
@@ -385,19 +379,19 @@ int main(int argc, char* argv[]) {
         verticies[0].position.x = (gridRobX / resolution) * resolution + resolution/2;
         verticies[0].position.y = (gridRobY / resolution) * resolution + resolution/2;
         verticies[0].color = sf::Color::Blue;
-        for (int i = 0; i < path.size(); ++i)
+        for (unsigned i = 0; i < path.size(); ++i)
         {
             verticies[i+1].position.x = path[i].x * resolution + resolution / 2;
             verticies[i+1].position.y = path[i].y * resolution + resolution / 2;
             verticies[i+1].color = sf::Color::Blue;
         }
-        window.draw(&verticies[0], verticies.size(), sf::PrimitiveType::LinesStrip); 
+        window.draw(&verticies[0], verticies.size(), sf::LinesStrip); 
         
         // draw the grid representation (only the occupied cells)
         sf::Color col = sf::Color::Yellow;
         col.a = 128;
-        for (int y = 0; y < pathFinder.occupancyGrid.height(); ++y)
-            for (int x = 0; x < pathFinder.occupancyGrid.width(); ++x)
+        for (unsigned y = 0; y < pathFinder.occupancyGrid.height(); ++y)
+            for (unsigned x = 0; x < pathFinder.occupancyGrid.width(); ++x)
             {
                 if (!pathFinder.occupancyGrid(y, x)) continue;
                 sf::RectangleShape rect;
