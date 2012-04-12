@@ -4,9 +4,11 @@
 #include <memdb.h>
 #include <stdio.h>
 
+int db;
 /* Initialization local variables before event loop  */
 inline C_RESULT demo_navdata_client_init( void* data )
 {
+  db = db_connect("8765");
   return C_OK;
 }
 
@@ -18,13 +20,11 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
         const navdata_phys_measures_t* nfr = &navdata->navdata_phys_measures;
 
         // stream to memdb
-        int db = db_connect(8765);
         db_printf(db, "navdata", "%u,%f,%f,%f,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f",
                   nd_time->time,
                   nd->vx, nd->vy, nd->vz,
                   nfr->phys_accs[ACC_X], nfr->phys_accs[ACC_Y], nfr->phys_accs[ACC_Z],
                   nfr->phys_gyros[GYRO_X], nfr->phys_gyros[GYRO_Y], nfr->phys_gyros[GYRO_Z]);
-        db_close(db);
 
         
           return C_OK;
@@ -33,6 +33,7 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
 /* Relinquish the local resources after the event loop exit */
 inline C_RESULT demo_navdata_client_release( void )
 {
+  db_close(db);
   return C_OK;
 }
 
