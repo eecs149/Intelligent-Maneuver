@@ -12,6 +12,8 @@
 #include <mrpt/opengl.h>
 #include <mrpt/gui.h>
 
+#include <SFML/Graphics.hpp>
+
 using namespace std;
 using namespace mrpt;
 using namespace mrpt::utils;
@@ -188,7 +190,13 @@ public:
     void update(const COccupancyGridMap2D& gridMap, int startX, int startY, int endX, int endY)
     {
         if (gridMap.getSizeY() > occupancyGrid.height()*resolution || gridMap.getSizeX() > occupancyGrid.width())
-            occupancyGrid.resize(gridMap.getSizeY() / resolution, gridMap.getSizeX() / resolution);
+        {
+            occupancyGrid = Matrix<unsigned char>(gridMap.getSizeY() / resolution, gridMap.getSizeX() / resolution);
+            startX = 0;
+            startY = 0;
+            endX = gridMap.getSizeX();
+            endY = gridMap.getSizeY();
+        }
 
         startX = max(startX / (int)resolution, 0);
         startY = max(startY / (int)resolution, 0);
@@ -227,7 +235,7 @@ public:
         return true;
     }
 
-private:
+//private:
     Matrix<unsigned char> occupancyGrid;
     unsigned resolution;
 };
@@ -246,14 +254,6 @@ int main(int argc, char* argv[]) {
     bool end = false;
     double accumX = 0.0, accumY = 0.0, accumPhi = 0.0;
 
-    // Graphics stuff
-    // Create 3D window if requested:
-    CDisplayWindow3D*win3D = NULL;
-#if MRPT_HAS_WXWIDGETS
-    win3D = new CDisplayWindow3D("ICP-SLAM @ MRPT C++ Library (C) 2004-2008", 600, 500);
-    win3D->setCameraZoom(20);
-    win3D->setCameraAzimuthDeg(-45);
-#endif
 
     // Load configurations
     CMetricMapBuilderICP icp_slam;
@@ -265,13 +265,26 @@ int main(int argc, char* argv[]) {
     robotLog.open(argv[2]); // log of robot odometer
 
     // pathfinding
-    CPathPlanningCircularRobot pathPlanner;
-    pathPlanner.robotRadius = 0.6;
-    pathPlanner.occupancyThreshold = 0.49;
-    PathFinder pathFinder(8);
+    int resolution = 4;
+    PathFinder pathFinder(resolution);
     deque<TPoint2D> path;
 
-    while (laserLog.good()) {
+    sf::RenderWindow window(sf::VideoMode(800, 600), "bam!");
+    window.setVerticalSyncEnabled(true);
+    bool paused = false;
+
+    while (laserLog.good() && window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event))
+        {
+            switch (event.type)
+            {
+            case sf::Event::Closed:
+                window.close();
+                break;
+            }
+        }
+
         double f;
         getline(laserLog, laserLine);
         getline(robotLog, robotLine);
@@ -332,99 +345,71 @@ int main(int argc, char* argv[]) {
         cout << "gridMap size: " << gridMap->getSizeX() << ' ' << gridMap->getSizeY() << '\n';
 
         // Perform path finding
-        CPose2D origin(robx, roby, robphi);
-        CPose2D target(gridMap->idx2x(890), gridMap->idx2y(270), robphi);
         pathFinder.update(*gridMap, gridRobX - 100, gridRobY - 100, gridRobX + 100, gridRobY + 100);
         bool pathFound = true;
-/*        if (path.size() == 0)
-            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
-        else if (pathFinder.checkPathValid(path) == 0)
-        {
-            printf("path no longer valid, repathing.\n");
-            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
-        }
-        */
         pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
         printf("pathFound: %d\tpath length: %d\n", pathFound, path.size());
-        /*
-        cout << " [";
+
+
+        // windows drawing
+        window.clear(sf::Color::White);
+        sf::View view;
+        view.setSize(800, 600);
+        view.setCenter(gridRobX, gridRobY);
+        window.setView(view);
+
+        // draw the grayscale probability map
+        sf::Image image;
+        image.create(gridMap->getSizeX(), gridMap->getSizeY());
+        for (int y = 0; y < gridMap->getSizeY(); ++y)
+            for (int x = 0; x < gridMap->getSizeX(); ++x)
+            {
+                sf::Uint8 col = gridMap->getCell(x, y) * 255;
+                image.setPixel(x, y, sf::Color(col, col, col));
+            }
+        sf::Texture texture;
+        texture.create(gridMap->getSizeX(), gridMap->getSizeY());
+        texture.update(image);
+        window.draw(sf::Sprite(texture));
+
+        // draw the robot's position
+        sf::CircleShape circle(5);
+        circle.setPosition(gridRobX-resolution/2, gridRobY-resolution/2);
+        circle.setOutlineColor(sf::Color::Red);
+        circle.setFillColor(sf::Color::Red);
+        window.draw(circle);
+
+        // draw the path
+        std::vector<sf::Vertex> verticies;
+        verticies.resize(path.size() + 1);
+        verticies[0].position.x = (gridRobX / resolution) * resolution + resolution/2;
+        verticies[0].position.y = (gridRobY / resolution) * resolution + resolution/2;
+        verticies[0].color = sf::Color::Blue;
         for (int i = 0; i < path.size(); ++i)
-            cout << path[i].asString() << ' ';
-        cout << ']';
-        cout << '\n';
-        */
-
-
-
-        // Save a 3D scene view of the mapping process:
-        if (win3D)
         {
-            COpenGLScenePtr scene = COpenGLScenePtr( new COpenGLScene() );
-        
-            COpenGLViewportPtr view = scene->getViewport("main");
-            ASSERT_(view);
-        
-            COpenGLViewportPtr view_map = scene->createViewport("mini-map");
-            view_map->setBorderSize(2);
-            view_map->setViewportPosition(0.01,0.01,0.35,0.35);
-            view_map->setTransparent(false);
-        
-            {
-                CCamera &cam = view_map->getCamera();
-                cam.setAzimuthDegrees(-90);
-                cam.setElevationDegrees(90);
-                cam.setPointingAt(curPosEst.x(), curPosEst.y(), curPosEst.z());
-                cam.setZoomDistance(20);
-                cam.setOrthogonal();
-            }
-        
-            // The ground:
-            CGridPlaneXYPtr groundPlane = CGridPlaneXY::Create(-200,200,-200,200,0,5);
-            groundPlane->setColor(0.4,0.4,0.4);
-            view->insert( groundPlane );
-            view_map->insert( CRenderizablePtr( groundPlane) ); // A copy
-        
-            // The camera pointing to the current robot pose:
-            scene->enableFollowCamera(true);
-        
-            {
-                CCamera &cam = view_map->getCamera();
-                cam.setAzimuthDegrees(-45);
-                cam.setElevationDegrees(45);
-                cam.setPointingAt(curPosEst.x(),curPosEst.y(),curPosEst.z());
-            }
-        
-            // The maps:
-            {
-                CSetOfObjectsPtr obj = CSetOfObjects::Create();
-                curMapEst->getAs3DObject( obj );
-                view->insert(obj);
-        
-                // Only the point map:
-                CSetOfObjectsPtr ptsMap = CSetOfObjects::Create();
-                if (curMapEst->m_pointsMaps.size())
-                {
-                    curMapEst->m_pointsMaps[0]->getAs3DObject(ptsMap);
-                    view_map->insert( ptsMap );
-                }
-            }
-        
-            // Show 3D?
-            COpenGLScenePtr &ptrScene = win3D->get3DSceneAndLock();
-            ptrScene = scene;
-        
-            win3D->unlockAccess3DScene();
-        
-            // Move camera:
-            win3D->setCameraPointingToPoint( curPosEst.x(), curPosEst.y(), curPosEst.z() );
-        
-            // Update:
-            win3D->forceRepaint();
+            verticies[i+1].position.x = path[i].x * resolution + resolution / 2;
+            verticies[i+1].position.y = path[i].y * resolution + resolution / 2;
+            verticies[i+1].color = sf::Color::Blue;
         }
+        window.draw(&verticies[0], verticies.size(), sf::PrimitiveType::LinesStrip); 
         
+        // draw the grid representation (only the occupied cells)
+        sf::Color col = sf::Color::Yellow;
+        col.a = 128;
+        for (int y = 0; y < pathFinder.occupancyGrid.height(); ++y)
+            for (int x = 0; x < pathFinder.occupancyGrid.width(); ++x)
+            {
+                if (!pathFinder.occupancyGrid(y, x)) continue;
+                sf::RectangleShape rect;
+                rect.setPosition(x * resolution, y * resolution);
+                rect.setSize(sf::Vector2f(resolution, resolution));
+                rect.setFillColor(col);
+                window.draw(rect);
+            }
+
+
+        window.display();
     }
-    // Save map estimate to temp.png
-//    icp_slam.saveCurrentEstimationToImage("temp");
 
     return 0;
 }
