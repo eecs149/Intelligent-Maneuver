@@ -68,4 +68,3 @@ $(MAKECMDGOALS): build_libs
 
 build_libs:
 	@$(MAKE) -C $(ARDRONE_SDK_PATH)/Soft/Build $(TMP_SDK_FLAGS) $(SDK_FLAGS) $(MAKECMDGOALS) USE_LINUX=yes
-
