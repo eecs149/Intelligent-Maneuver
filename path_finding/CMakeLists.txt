@@ -13,11 +13,10 @@ if(COMMAND cmake_policy)
 #    need to specify the top-most libraries your code depends on.
 # --------------------------------------------------------------------------
 FIND_PACKAGE( MRPT REQUIRED base obs slam gui )    # WARNING: Add all the MRPT libs used by your program: "gui", "obs", "slam",etc. 
-FIND_PACKAGE( SFML REQUIRED graphics system window network )
 
 # Declare the target (an executable)
 ADD_EXECUTABLE(mrpt_example1 read_log.cpp)
-TARGET_LINK_LIBRARIES(mrpt_example1 ${MRPT_LIBS} ${SFML_LIBRARIES})
+TARGET_LINK_LIBRARIES(mrpt_example1 ${MRPT_LIBS} sfml-graphics sfml-window sfml-network)
 
 # Set optimized building:
 IF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_BUILD_TYPE MATCHES "Debug")
