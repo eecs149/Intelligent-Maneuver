@@ -75,10 +75,32 @@ static int db_get(int db, const char *key, char *out, int size) {
     return ret_size;
 }
 
+static int db_tryget(int db, const char *key, char *out, int size) {
+    _db_send(db, "tryget %s\n", key);
+    int ret_size = recv(db, out, size, 0);
+    out[ret_size] = '\0';
+    if (!strcmp(out, "-none-"))
+        return -1;
+    return ret_size;
+}
+
 static int db_scanf(int db, const char *key, const char *format, ...) {
     char buf[1024];
     int size = db_get(db, key, buf, sizeof(buf));
-    printf("size: %d\n", size);
+
+    va_list args;
+    va_start(args, format);
+    int num_read = vsscanf(buf, format, args);
+    va_end(args);
+
+    return num_read;
+}
+
+static int db_tryscanf(int db, const char *key, const char *format, ...) {
+    char buf[1024];
+    int size = db_tryget(db, key, buf, sizeof(buf));
+    if (size < 0)
+        return -1;
 
     va_list args;
     va_start(args, format);
@@ -93,5 +115,9 @@ static int db_count(int db, const char *key) {
     _db_send(db, "count %s\n", key);
     recv(db, buf, sizeof(buf), 0);
     return atoi(buf);
+}
+
+static void db_clear(int db, const char *key) {
+    _db_send(db, "clear %s\n", key);
 }
 
