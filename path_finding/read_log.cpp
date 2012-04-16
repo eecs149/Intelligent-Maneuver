@@ -76,12 +76,14 @@ struct Node
     unsigned f;
     unsigned parentX;
     unsigned parentY;
+    int dx;
+    int dy;
 
     static unsigned endX;
     static unsigned endY;
 
     Node(unsigned x, unsigned y, unsigned g, unsigned parentX, unsigned parentY):
-    x(x), y(y), g(g), parentX(parentX), parentY(parentY)
+    x(x), y(y), g(g), parentX(parentX), parentY(parentY), dx(0), dy(0)
     {
         int dx = abs((int)endX - (int)x);
         int dy = abs((int)endY - (int)y);
@@ -93,6 +95,19 @@ struct Node
     bool operator<(const Node& other) const
     {
         return f > other.f;
+    }
+
+    Node getSuccessor(int dx, int dy, int dg)
+    {
+        Node node(x+dx, y+dy, g+dg, x, y);
+        
+        // if it is moving in the same direction as the parent, subtract a bit from hits heuristic
+        node.dx = dx;
+        node.dy = dy;
+        if (dx == this->dx && dy == this->dy)
+            node.f -= 0.1;
+
+        return node;
     }
 };
 
@@ -151,28 +166,28 @@ public:
 
             // left
             if (pt.x > 0 && !occupancyGrid(pt.y, pt.x-1))
-                fringe.push(Node(pt.x-1, pt.y, pt.g+10, pt.x, pt.y));
+                fringe.push(pt.getSuccessor(-1, 0, 10));
             // up
             if (pt.y > 0 && !occupancyGrid(pt.y-1, pt.x))
-                fringe.push(Node(pt.x, pt.y-1, pt.g+10, pt.x, pt.y));
+                fringe.push(pt.getSuccessor(0, -1, 10));
             // right
             if (pt.x+1 < occupancyGrid.width() && !occupancyGrid(pt.y, pt.x+1))
-                fringe.push(Node(pt.x+1, pt.y, pt.g+10, pt.x, pt.y));
+                fringe.push(pt.getSuccessor(1, 0, 10));
             // down
             if (pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y+1, pt.x))
-                fringe.push(Node(pt.x, pt.y+1, pt.g+10, pt.x, pt.y));
+                fringe.push(pt.getSuccessor(0, 1, 10));
             // upleft
             if (pt.x > 0 && pt.y > 0 && !occupancyGrid(pt.y-1, pt.x-1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x-1))
-                fringe.push(Node(pt.x-1, pt.y-1, pt.g+14, pt.x, pt.y));
+                fringe.push(pt.getSuccessor(-1, -1, 14));
             // downleft
             if (pt.x > 0 && pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y-1, pt.x-1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x-1))
-                fringe.push(Node(pt.x-1, pt.y+1, pt.g+14, pt.x, pt.y));
+                fringe.push(pt.getSuccessor(-1, 1, 14));
             // upright
             if (pt.x+1 < occupancyGrid.width() && pt.y > 0 && !occupancyGrid(pt.y-1, pt.x+1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x+1))
-                fringe.push(Node(pt.x+1, pt.y-1, pt.g+14, pt.x, pt.y));
+                fringe.push(pt.getSuccessor(1, -1, 14));
             // downright
             if (pt.x+1 < occupancyGrid.width() && pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y+1, pt.x+1) && !occupancyGrid(pt.y+1, pt.x) && !occupancyGrid(pt.y, pt.x+1))
-                fringe.push(Node(pt.x+1, pt.y+1, pt.g+14, pt.x, pt.y));
+                fringe.push(pt.getSuccessor(1, 1, 14));
         }
 
         return false;
