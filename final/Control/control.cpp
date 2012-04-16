@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
     deque<TPoint2D> path;
 
     // connect to memdb
-//    int db = db_connect("8765");
+    db_t db = db_connect("8765");
 
     sf::RenderWindow window(sf::VideoMode(800, 600), "bam!");
     window.setVerticalSyncEnabled(true);
@@ -72,13 +72,11 @@ int main(int argc, char* argv[]) {
         // Need to define 2 values
         // 1.) scan: a vector of floats signalling the distances. Each element is a degree
         // 2.) validRange: a vector of ints where 1 signals the reading is good and 0 means its bad (and won't be used)
-        char *val;
-        db_scanf(db, "lidar", "%s", val);
-        while (strcmp(val, "done") != 0)
+        char buffer[1024];
+        while (db_tryget(db, "lidar", buffer, sizeof(buffer)) != -1)
         {
-            obs->scan.push_back(atof(val));
+            obs->scan.push_back(atof(buffer));
             obs->validRange.push_back(1);
-            db_scanf(db, "lidar", "%s", val);
         }
         icp_slam.processObservation(obs);
 

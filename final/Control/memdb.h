@@ -1,13 +1,29 @@
+#ifdef _WIN32
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+typedef SOCKET db_t;
+static int close(db_t db) { return closesocket(db); }
+#define snprintf _snprintf
+#define vsscanf _vsscanf
+#else
 #include <errno.h>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+typedef int db_t;
+#endif
+
 
 static int db_connect(const char* port) {
+#ifdef _WIN32
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != NO_ERROR)
+        return -1;
+#endif
     int sock;
     struct addrinfo hints, *servinfo, *p;
 
-    vp_os_memset(&hints, 0, sizeof(hints));
+    memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
@@ -35,11 +51,11 @@ static int db_connect(const char* port) {
     return sock;
 }
 
-static void db_close(int db) {
+static void db_close(db_t db) {
     close(db);
 }
 
-static void _db_send(int db, const char *format, ...) {
+static void _db_send(db_t db, const char *format, ...) {
     char buf[1024];
     int size;
 
@@ -52,7 +68,7 @@ static void _db_send(int db, const char *format, ...) {
 }
     
 
-static void db_printf(int db, const char *key, const char *format, ...) {
+static void db_printf(db_t db, const char *key, const char *format, ...) {
     char buf[1024];
     int size;
 
@@ -68,14 +84,14 @@ static void db_printf(int db, const char *key, const char *format, ...) {
     send(db, buf, size+1, 0);
 }
 
-static int db_get(int db, const char *key, char *out, int size) {
+static int db_get(db_t db, const char *key, char *out, int size) {
     _db_send(db, "get %s\n", key);
     int ret_size = recv(db, out, size, 0);
     out[ret_size] = '\0';
     return ret_size;
 }
 
-static int db_tryget(int db, const char *key, char *out, int size) {
+static int db_tryget(db_t db, const char *key, char *out, int size) {
     _db_send(db, "tryget %s\n", key);
     int ret_size = recv(db, out, size, 0);
     out[ret_size] = '\0';
@@ -84,7 +100,8 @@ static int db_tryget(int db, const char *key, char *out, int size) {
     return ret_size;
 }
 
-static int db_scanf(int db, const char *key, const char *format, ...) {
+#ifndef _WIN32
+static int db_scanf(db_t db, const char *key, const char *format, ...) {
     char buf[1024];
     int size = db_get(db, key, buf, sizeof(buf));
 
@@ -96,7 +113,7 @@ static int db_scanf(int db, const char *key, const char *format, ...) {
     return num_read;
 }
 
-static int db_tryscanf(int db, const char *key, const char *format, ...) {
+static int db_tryscanf(db_t db, const char *key, const char *format, ...) {
     char buf[1024];
     int size = db_tryget(db, key, buf, sizeof(buf));
     if (size < 0)
@@ -109,15 +126,15 @@ static int db_tryscanf(int db, const char *key, const char *format, ...) {
 
     return num_read;
 }
+#endif
 
-static int db_count(int db, const char *key) {
+static int db_count(db_t db, const char *key) {
     char buf[16] = "";
     _db_send(db, "count %s\n", key);
     recv(db, buf, sizeof(buf), 0);
     return atoi(buf);
 }
 
-static void db_clear(int db, const char *key) {
+static void db_clear(db_t db, const char *key) {
     _db_send(db, "clear %s\n", key);
 }
-

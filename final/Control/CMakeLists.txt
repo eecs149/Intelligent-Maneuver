@@ -18,6 +18,10 @@ FIND_PACKAGE( MRPT REQUIRED base obs slam gui )    # WARNING: Add all the MRPT l
 ADD_EXECUTABLE(control control.cpp feedback.cpp pathfinder.cpp)
 TARGET_LINK_LIBRARIES(control ${MRPT_LIBS} sfml-graphics sfml-window)
 
+IF(WIN32)
+    TARGET_LINK_LIBRARIES(control ws2_32)
+ENDIF(WIN32)
+
 # Set optimized building:
 IF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_BUILD_TYPE MATCHES "Debug")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mtune=native")
