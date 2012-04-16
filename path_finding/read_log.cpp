@@ -240,8 +240,8 @@ public:
     {
         for (unsigned i = 0; i < path.size(); ++i)
         {
-            int x = path[i].x / resolution;
-            int y = path[i].y / resolution;
+            int x = path[i].x;
+            int y = path[i].y;
 
             if (occupancyGrid(y, x))
                 return false;
@@ -285,6 +285,8 @@ int main(int argc, char* argv[]) {
     window.setVerticalSyncEnabled(true);
     bool paused = false;
 
+    sf::Clock clock;
+    unsigned frameCount = 0;
     while (laserLog.good() && window.isOpen()) {
         sf::Event event;
         while (window.pollEvent(event))
@@ -358,9 +360,12 @@ int main(int argc, char* argv[]) {
 
         // Perform path finding
         pathFinder.update(*gridMap, gridRobX - 100, gridRobY - 100, gridRobX + 100, gridRobY + 100);
-        bool pathFound = true;
-        pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
-        printf("pathFound: %d\tpath length: %d\n", pathFound, path.size());
+        if (path.size() == 0 || !pathFinder.checkPathValid(path))
+        {
+            bool pathFound = true;
+            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
+            printf("pathFound: %d\tpath length: %d\n", pathFound, path.size());
+        }
 
 
         // windows drawing
@@ -371,18 +376,24 @@ int main(int argc, char* argv[]) {
         window.setView(view);
 
         // draw the grayscale probability map
+        /*
         sf::Image image;
         image.create(gridMap->getSizeX(), gridMap->getSizeY());
-        for (unsigned y = 0; y < gridMap->getSizeY(); ++y)
-            for (unsigned x = 0; x < gridMap->getSizeX(); ++x)
+        int yEnd = min((int)gridMap->getSizeY(), gridRobY + 400);
+        int xEnd = min((int)gridMap->getSizeX(), gridRobX + 400);
+        for (int y = max(0, gridRobY - 400); y < yEnd; ++y)
+        {
+            for (int x = max(0, gridRobX - 400); x < xEnd; ++x)
             {
                 sf::Uint8 col = gridMap->getCell(x, y) * 255;
                 image.setPixel(x, y, sf::Color(col, col, col));
             }
+        }
         sf::Texture texture;
         texture.create(gridMap->getSizeX(), gridMap->getSizeY());
         texture.update(image);
         window.draw(sf::Sprite(texture));
+        */
 
         // draw the robot's position
         sf::CircleShape circle(5);
@@ -406,21 +417,36 @@ int main(int argc, char* argv[]) {
         window.draw(&verticies[0], verticies.size(), sf::LinesStrip); 
         
         // draw the grid representation (only the occupied cells)
+        /*
         sf::Color col = sf::Color::Yellow;
         col.a = 128;
-        for (unsigned y = 0; y < pathFinder.occupancyGrid.height(); ++y)
-            for (unsigned x = 0; x < pathFinder.occupancyGrid.width(); ++x)
+        for (unsigned y = max(0, (gridRobY-400)/resolution); y < min<int>(pathFinder.occupancyGrid.height(), (gridRobY+400)/resolution); ++y)
+            for (unsigned x = max(0, (gridRobX-400)/resolution); x < min<int>(pathFinder.occupancyGrid.width(), (gridRobX+400)/resolution); ++x)
             {
                 if (!pathFinder.occupancyGrid(y, x)) continue;
+
+                int xx = x * resolution;
+                int yy = y * resolution;
                 sf::RectangleShape rect;
-                rect.setPosition(x * resolution, y * resolution);
+                rect.setPosition(xx, yy);
                 rect.setSize(sf::Vector2f(resolution, resolution));
                 rect.setFillColor(col);
                 window.draw(rect);
             }
-
+            */
 
         window.display();
+
+        frameCount++;
+        if (clock.getElapsedTime().asSeconds() >= 1.0)
+        {
+            char timestr[16];
+            sprintf(timestr, "%d fps", frameCount);
+            window.setTitle(timestr);
+
+            clock.restart();
+            frameCount = 0;
+        }
     }
 
     return 0;

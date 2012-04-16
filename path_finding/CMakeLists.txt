@@ -16,7 +16,7 @@ FIND_PACKAGE( MRPT REQUIRED base obs slam gui )    # WARNING: Add all the MRPT l
 
 # Declare the target (an executable)
 ADD_EXECUTABLE(mrpt_example1 read_log.cpp)
-TARGET_LINK_LIBRARIES(mrpt_example1 ${MRPT_LIBS} sfml-graphics sfml-window sfml-network)
+TARGET_LINK_LIBRARIES(mrpt_example1 ${MRPT_LIBS} sfml-graphics sfml-window sfml-network sfml-system)
 
 # Set optimized building:
 IF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_BUILD_TYPE MATCHES "Debug")
