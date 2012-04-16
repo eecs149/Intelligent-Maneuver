@@ -17,6 +17,7 @@
 #include <SFML/Graphics.hpp>
 
 #include "memdb.h"
+#include "feedback.h"
 
 using namespace std;
 using namespace mrpt;
@@ -264,11 +265,12 @@ int main(int argc, char* argv[]) {
     PathFinder pathFinder(resolution);
     deque<TPoint2D> path;
 
+    // connect to memdb
+    int db = db_connect("8765");
+
     sf::RenderWindow window(sf::VideoMode(800, 600), "bam!");
     window.setVerticalSyncEnabled(true);
     bool paused = false;
-
-    int db = db_connect("8765");
 
     while (1) { // TODO: What will be our terminal case? target location reached?
         sf::Event event;
