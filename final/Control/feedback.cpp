@@ -1,43 +1,18 @@
 #include <math.h>
 #include "feedback.h"
 
-
-/* prototype code for flying a desired distance or a desired angle */
-/* flying direction states - TODO: define these */
-typedef enum{
-	FLY_RIGHT,      // positive x
-	FLY_LEFT,       // negative x
-	FLY_FORWARD,    // positive y
-	FLY_BACKWARD    // negative y
-} flyDirectionState_t;
-
-/* turning direction states - TODO: define these */
-typedef enum{
-	TURN_RIGHT,     // positive angle
-	TURN_LEFT       // negative angle
-} turnDirectionState_t;
-
-
 /* constants */
 #define DIST_BIAS  5	// in mm
 #define ANGLE_BIAS 10 	// units?
-#define TIME_STEP  2	// in ms; set to 1 or delete if this becomes a waste of space in memory
 
 /* variables */
 unsigned long start_time;
-
-float target_x;           // TODO: set this somewhere
-float target_y;           // TODO: set this somewhere
-float target_angle;       // TODO: set this somewhere (yaw = psi = angles[3])
+float dist_travelled;
+float angle_turned;
 
 /* from Protocol/navdata.c */
 float angles[3];
 float velocities[3];
-
-
-float dist_travelled;
-float angle_turned;
-
 
 void initialize_feedback(unsigned long time) {
     start_time = time;
@@ -46,37 +21,74 @@ void initialize_feedback(unsigned long time) {
 }
 
 /*
- * @param: dist_target should be "target_x" or "target_y"
+ * @param: dist_target > 0 for flying forward
+ *         dist_target < 0 for flying backward
  */
-void fly_target_distance(float dist_target, unsigned long time) {
-    // TODO: make drone fly in a direction based on flyDirectionState_t
+DroneMovement fly_target_distance_x(float dist_target, unsigned long time) {
+	DroneMovement command = HOVER;
 
-    do {
-        if (time % TIME_STEP == 0) {
-            if (FLY_RIGHT || FLY_LEFT) {
-                dist_travelled = fabs(velocities[0]) * (time - start_time);
-            }
-            else {
-                dist_travelled = fabs(velocities[1]) * (time - start_time);
-            }
-        }
+	dist_travelled = velocities[0] * (time - start_time);
+	
+	if (dist_target > 0) {
+		command = FLY_FORWARD;
+	}
+	else {
+		command = FLY_BACKWARD;
+	}
 
-        // TODO: make drone stop and hover here
-    } while (fabs(fabs(dist_target) - dist_travelled) < DIST_BIAS);
+	// if the drone has travelled enough, make it stop
+	if (fabs(dist_target - dist_travelled) > DIST_BIAS) {
+		command = HOVER;
+	}
+
+	return command;
 }
 
 /*
- * @param: angle_target should be "target_angle"
+ * @param: dist_target > 0 for flying left
+ *         dist_target < 0 for flying right
  */
-void turn_target_distance(float angle_target, unsigned long time) {
-    // TODO: make drone turn in a direction based on turnDirectionState_t
+DroneMovement fly_target_distance_y(float dist_target, unsigned long time) {
+	DroneMovement command = HOVER;
+	
+	dist_travelled = velocities[1] * (time - start_time);
 
-    do {
-        if (time % TIME_STEP == 0) {
-            angle_turned = angles[3];
-        }
-    } while (fabs(angle_target - angle_turned) < ANGLE_BIAS);;
+	if (dist_target > 0) {
+		command = FLY_LEFT;
+	}
+	else {
+		command = FLY_RIGHT;
+	}
 
-    // TODO: make drone stop and hover here
+	// if the drone has flown enough, make it stop
+	if (fabs(dist_target - dist_travelled) > DIST_BIAS) {
+		command = HOVER;
+	}
+
+	return command;
+}
+
+/*
+ * @param: angle_target > 0 for turning left
+ *         angle_target < 0 for turning right
+ */
+DroneMovement turn_target_distance(float angle_target, unsigned long time) {
+    DroneMovement command = HOVER;
+
+    angle_turned = angles[3];
+    
+    if (angle_target > 0) {
+    	command = TURN_LEFT;
+    }
+    else {
+    	command = TURN_RIGHT;
+    }
+    
+    // if the drone has turned enough, make it stop
+    if (fabs(angle_target - angle_turned) > ANGLE_BIAS) {
+    	command = HOVER;
+    }
+    
+    return command;
 }
 
