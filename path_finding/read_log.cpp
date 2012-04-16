@@ -105,7 +105,10 @@ struct Node
         node.dx = dx;
         node.dy = dy;
         if (dx == this->dx && dy == this->dy)
+        {
             node.f -= 0.1;
+            node.g -= 0.05;
+        }
 
         return node;
     }
