@@ -30,9 +30,9 @@ public:
 
     void resize(unsigned height, unsigned width, const T& val = T())
     {
-        vector<T> data(width*height, val);
-        unsigned minHeight = min(height, h);
-        unsigned minWidth = min(width, w);
+        std::vector<T> data(width*height, val);
+        unsigned minHeight = std::min(height, h);
+        unsigned minWidth = std::min(width, w);
         for (unsigned y = 0; y < minHeight; ++y)
             for (unsigned x = 0; x < minWidth; ++x)
                 data[y*width+x] = this->data[y*w+x];

@@ -116,7 +116,7 @@ int main(int argc, char* argv[]) {
         pathFinder.update(*gridMap, gridRobX - 100, gridRobY - 100, gridRobX + 100, gridRobY + 100);
         bool pathFound = true;
         pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
-        printf("pathFound: %d\tpath length: %d\n", pathFound, path.size());
+        printf("pathFound: %d\tpath length: %lu\n", pathFound, path.size());
 
         //TODO: convert path to a vector (distance + direction)
         
