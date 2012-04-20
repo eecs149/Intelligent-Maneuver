@@ -119,8 +119,52 @@ int main(int argc, char* argv[]) {
         printf("pathFound: %d\tpath length: %lu\n", pathFound, path.size());
 
         //TODO: convert path to a vector (distance + direction)
+        //use vector_t struct in feedback.h
         
         //TODO: feed vector to feedback loop
+        //  need to translate commands => send using something like _db_send
+        //  don't uncomment this yet
+        /*
+        initialize_feedback(time);  //TODO: need variable for current time (unsigned float)
+        DroneMovement state = process_feedback(vector, time);  
+        switch (state) {
+        case FLY_FORWARD:    // positive x
+            front rotor: omega - delta_b
+            rear rotor:  omega + delta_a
+            break;
+        case FLY_BACKWARD:   // negative x
+            front rotor: omega + delta a
+            rear rotor:  omega - delta_b
+            break;
+        case FLY_LEFT:       // positive y
+            left rotor:  omega - delta_b
+            right rotor: omega + delta_a
+            break;
+        case FLY_RIGHT:      // negative y
+            left rotor:  omega + delta_a
+            right rotor: omega - delta_b
+            break;
+        case FLY_UP:         // positive z
+            all rotors:  omega + delta_a
+            break;
+        case FLY_DOWN:       // negative z
+            all rotors: omega - delta_b
+            break;
+        case TURN_LEFT:      // positive angle
+            front rotor: omega - delta_b
+            rear rotor:  omega - delta_b
+            left rotor:  omega + delta_a
+            right rotor: omega + delta_a
+            break;
+        case TURN_RIGHT:     // negative angle
+            front rotor: omega + delta_a
+            rear rotor:  omega + delta_a
+            left rotor:  omega - delta_b
+            right rotor: omega - delta_b
+            break;
+        default:             // default is hover
+            break;
+        }*/ 
 
         // windows drawing
         window.clear(sf::Color::White);
