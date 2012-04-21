@@ -52,6 +52,7 @@ int main(int argc, char* argv[]) {
     db_t db = db_connect("8765");
 
     sf::RenderWindow window(sf::VideoMode(800, 600), "bam!");
+    sf::Clock globalClock;
     window.setVerticalSyncEnabled(true);
     bool paused = false;
 
@@ -125,8 +126,8 @@ int main(int argc, char* argv[]) {
         //  need to translate commands => send using something like _db_send
         //  don't uncomment this yet
         /*
-        initialize_feedback(time);  //TODO: need variable for current time (unsigned float)
-        DroneMovement state = process_feedback(vector, time);  
+        initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
+        DroneMovement state = process_feedback(vector, globalClock.getElapsedTime().asMilliseconds());
         switch (state) {
         case FLY_FORWARD:    // positive x
             front rotor: omega - delta_b
