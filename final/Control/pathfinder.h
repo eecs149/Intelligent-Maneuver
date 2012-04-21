@@ -91,6 +91,8 @@ public:
 
     void update(const mrpt::utils::COccupancyGridMap2D& gridMap, int startX, int startY, int endX, int endY);
 
+    void simplifyPath(std::deque<mrpt::utils::TPoint2D>& path);
+
     bool checkPathValid(std::deque<mrpt::utils::TPoint2D>& path);
 
 //private:

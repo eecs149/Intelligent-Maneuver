@@ -172,3 +172,25 @@ bool PathFinder::checkPathValid(deque<TPoint2D>& path)
     return true;
 }
 
+void simplifyPath(std::deque<mrpt::utils::TPoint2D>& path)
+{
+    if (path.size() <= 1) return;
+
+    std::deque<mrpt::utils::TPoint2D>& newpath;
+    newpath.push_back(path[0]);
+    int dx = path[1].x - path[0].x;
+    int dy = path[1].y - path[0].y;
+    for (int i = 2; i < path.size(); ++i)
+    {
+        if (path[i].x - path[i-1].x != dx || path[i].y - path[i-1].y != dy)
+        {
+            dx = path[i].x - path[i-1].x;
+            dy = path[i].y - path[i-1].y;
+            newpath.push_back(path[i-1]);
+        }
+    }
+    newpath.push_back(path[path.size()-1]);
+
+    path.swap(newpath);
+}
+
