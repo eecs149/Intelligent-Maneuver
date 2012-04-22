@@ -14,7 +14,7 @@ typedef int db_t;
 #endif
 
 
-static int db_connect(const char* port) {
+static db_t db_connect(const char* port) {
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != NO_ERROR)

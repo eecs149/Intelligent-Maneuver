@@ -1,7 +1,8 @@
 #ifndef FEEDBACK_H
 #define FEEDBACK_H
 
-enum DroneMovement {
+enum DroneMovement
+{
     FLY_FORWARD,    // positive x
     FLY_BACKWARD,   // negative x
     
@@ -17,10 +18,11 @@ enum DroneMovement {
     HOVER
 };
 
-typedef struct {
+struct vector_t
+{
     float distance;
     int direction_toggle;   // 0 for x, 1 for y, 2 for z (this is sort of ghetto)
-} vector_t;
+};
 
 void initialize_feedback();
 

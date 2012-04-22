@@ -87,6 +87,10 @@ bool PathFinder::findPath(const TPoint2D& start, const TPoint2D& end, deque<TPoi
                 x = parentX(y, x);
                 y = parentY(y, oldX);
             }
+            path.push_front(TPoint2D(x, y));
+
+            simplifyPath(path);
+
             return true;
         }
 
@@ -172,7 +176,7 @@ bool PathFinder::checkPathValid(deque<TPoint2D>& path)
     return true;
 }
 
-void simplifyPath(std::deque<mrpt::utils::TPoint2D>& path)
+void PathFinder::simplifyPath(std::deque<mrpt::utils::TPoint2D>& path)
 {
     if (path.size() <= 1) return;
 

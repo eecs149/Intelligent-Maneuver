@@ -357,9 +357,7 @@ int main(int argc, char* argv[]) {
         COccupancyGridMap2DPtr gridMap = curMapEst->m_gridMaps[0];
 
         // Get the position estimates
-        CPose3DPDFPtr curPosPDF = icp_slam.getCurrentPoseEstimation();
-        CPose3D curPosEst;
-        curPosPDF->getMean(curPosEst);
+        CPose3D curPosEst = icp_slam.getCurrentPoseEstimation()->getMeanVal();
         // (estimated) X,Y coordinates of the robot, and robot yaw angle (direction)
         double robx = curPosEst.x();
         double roby = curPosEst.y();
