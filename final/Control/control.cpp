@@ -169,7 +169,12 @@ int main(int argc, char* argv[]) {
             vector<vector_t> movement_vectors;
             for (unsigned i = 1; i < path.size(); ++i)
             {
+                double dx = path[i].x - path[i-1].x;
+                double dy = path[i].y - path[i-1].y;
+                double newPhi = fmod(atan2(dy, dx), 2 * M_PI);
+                double distance = sqrt(dx*dx + dy*dy);
 
+                // TODO: do something with newPhi and distance
             }
         }
 
