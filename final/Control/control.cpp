@@ -54,6 +54,10 @@ int main(int argc, char* argv[]) {
     sf::RenderWindow window(sf::VideoMode(800, 600), "bam!");
     sf::Clock globalClock;
     window.setVerticalSyncEnabled(true);
+    sf::Texture texture;
+    texture.create(800, 600);
+    Matrix<sf::Color> pixels(600, 800);
+    sf::Sprite sprite(texture);
     bool paused = false;
 
     while (1) { // TODO: What will be our terminal case? target location reached?
@@ -175,18 +179,24 @@ int main(int argc, char* argv[]) {
         window.setView(view);
 
         // draw the grayscale probability map
-        sf::Image image;
-        image.create(gridMap->getSizeX(), gridMap->getSizeY());
-        for (unsigned y = 0; y < gridMap->getSizeY(); ++y)
-            for (unsigned x = 0; x < gridMap->getSizeX(); ++x)
+        int yStart = max(0, gridRobY - 300);
+        int yEnd = min((int)gridMap->getSizeY(), gridRobY + 300);
+        int xStart = max(0, gridRobX - 400);
+        int xEnd = min((int)gridMap->getSizeX(), gridRobX + 400);
+        for (int y = yStart; y < yEnd; ++y)
+        {
+            for (int x = xStart; x < xEnd; ++x)
             {
+                sf::Color &color = pixels(y-yStart, x-xStart);
                 sf::Uint8 col = gridMap->getCell(x, y) * 255;
-                image.setPixel(x, y, sf::Color(col, col, col));
+                color.r = col;
+                color.g = col;
+                color.b = col;
             }
-        sf::Texture texture;
-        texture.create(gridMap->getSizeX(), gridMap->getSizeY());
-        texture.update(image);
-        window.draw(sf::Sprite(texture));
+        }
+        texture.update((sf::Uint8*)pixels.getData());
+        sprite.setPosition(xStart, yStart);
+        window.draw(sprite);
 
         // draw the robot's position
         sf::CircleShape circle(5);

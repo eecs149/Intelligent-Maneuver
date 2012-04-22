@@ -49,6 +49,16 @@ public:
         return h;
     }
 
+    const T* getData() const
+    {
+        return &data[0];
+    }
+
+    T* getData()
+    {
+        return &data[0];
+    }
+
 private:
     unsigned w;
     unsigned h;

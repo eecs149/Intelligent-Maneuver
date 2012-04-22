@@ -60,6 +60,16 @@ public:
         return h;
     }
 
+    const T* getData() const
+    {
+        return &data[0];
+    }
+
+    T* getData()
+    {
+        return &data[0];
+    }
+
 private:
     unsigned w;
     unsigned h;
@@ -282,6 +292,10 @@ int main(int argc, char* argv[]) {
     deque<TPoint2D> path;
 
     sf::RenderWindow window(sf::VideoMode(800, 600), "bam!");
+    sf::Texture texture;
+    texture.create(800, 600);
+    Matrix<sf::Color> pixels(600, 800);
+    sf::Sprite sprite(texture);
     window.setVerticalSyncEnabled(true);
     bool paused = false;
 
@@ -376,24 +390,24 @@ int main(int argc, char* argv[]) {
         window.setView(view);
 
         // draw the grayscale probability map
-        /*
-        sf::Image image;
-        image.create(gridMap->getSizeX(), gridMap->getSizeY());
-        int yEnd = min((int)gridMap->getSizeY(), gridRobY + 400);
+        int yStart = max(0, gridRobY - 300);
+        int yEnd = min((int)gridMap->getSizeY(), gridRobY + 300);
+        int xStart = max(0, gridRobX - 400);
         int xEnd = min((int)gridMap->getSizeX(), gridRobX + 400);
-        for (int y = max(0, gridRobY - 400); y < yEnd; ++y)
+        for (int y = yStart; y < yEnd; ++y)
         {
-            for (int x = max(0, gridRobX - 400); x < xEnd; ++x)
+            for (int x = xStart; x < xEnd; ++x)
             {
+                sf::Color &color = pixels(y-yStart, x-xStart);
                 sf::Uint8 col = gridMap->getCell(x, y) * 255;
-                image.setPixel(x, y, sf::Color(col, col, col));
+                color.r = col;
+                color.g = col;
+                color.b = col;
             }
         }
-        sf::Texture texture;
-        texture.create(gridMap->getSizeX(), gridMap->getSizeY());
-        texture.update(image);
-        window.draw(sf::Sprite(texture));
-        */
+        texture.update((sf::Uint8*)pixels.getData());
+        sprite.setPosition(xStart, yStart);
+        window.draw(sprite);
 
         // draw the robot's position
         sf::CircleShape circle(5);

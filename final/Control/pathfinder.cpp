@@ -176,7 +176,7 @@ void simplifyPath(std::deque<mrpt::utils::TPoint2D>& path)
 {
     if (path.size() <= 1) return;
 
-    std::deque<mrpt::utils::TPoint2D>& newpath;
+    std::deque<mrpt::utils::TPoint2D> newpath;
     newpath.push_back(path[0]);
     int dx = path[1].x - path[0].x;
     int dy = path[1].y - path[0].y;
