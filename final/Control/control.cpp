@@ -32,10 +32,18 @@ enum State
     READ_LIDAR,
     PLAN,
     MOVE_FORWARD,
-    MOVE_LEFT,
-    MOVE_RIGHT,
+    MOVE_SIDEWAY,
     TURNING
 };
+
+
+db_t db;
+
+// all of the following k's range from -1 to 1
+void hover();
+void moveSideway(float k); // left if k < 0, right if k > 0
+void moveForward(float k); // backward if k < 0, forward if k > 0
+void turn(float k); // ?? if k < 0, ?? if k > 0
 
 int main(int argc, char* argv[]) {
 
@@ -46,7 +54,7 @@ int main(int argc, char* argv[]) {
     }
 
     // connect to memdb
-    db_t db = db_connect("8765");
+    db = db_connect("8765");
     if (db == -1)
     {
         puts("failed to connect to memdb.");
@@ -166,8 +174,7 @@ int main(int argc, char* argv[]) {
         }
 
         else if (state == MOVE_FORWARD || 
-                 state == MOVE_LEFT || 
-                 state == MOVE_RIGHT || 
+                 state == MOVE_SIDEWAY || 
                  state == TURNING)
         {
             //TODO: feed vector to feedback loop
@@ -298,3 +305,25 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
+
+void hover()
+{
+    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 1, 0, 0, 0, 0);
+}
+
+void moveSideway(float k) // left if k < 0, right if k > 0
+{
+    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, k, 0, 0, 0);
+}
+
+void moveForward(float k) // backward if k < 0, forward if k > 0
+{
+    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0, k, 0, 0);
+}
+
+void turn(float k) // ?? if k < 0, ?? if k > 0
+{
+    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0, 0, 0, k);
+}
+

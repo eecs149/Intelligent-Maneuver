@@ -18,6 +18,12 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
     const navdata_demo_t*nd = &navdata->navdata_demo;
     const navdata_time_t*nd_time = &navdata->navdata_time;
     const navdata_phys_measures_t* nfr = &navdata->navdata_phys_measures;
+    char buffer[1024];
+    int hover = 0; // boolean indicating whether it's hovering or not
+    float phi; // left/right angle
+    float theta; // front/back angle
+    float gaz; // verticle speed
+    float yaw; // angular speed
 
     // stream to memdb
     db_printf(db, "navdata", "%u,%f,%f,%f,%d,%f,%f,%f,%f,%f",
@@ -25,6 +31,17 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
               nd->vx, nd->vy, nd->vz,
               nfr->phys_accs[ACC_X], nfr->phys_accs[ACC_Y], nfr->phys_accs[ACC_Z],
               nfr->phys_gyros[GYRO_X], nfr->phys_gyros[GYRO_Y], nfr->phys_gyros[GYRO_Z]);
+
+    // read from memdb and send to ardrone
+    while (db_tryget(db, "drone_command", buffer, sizeof(buffer)) != -1)
+    {
+        sscanf(buffer, "%d,%f,%f,%f,%f", %hover, &phi, &theta, &gaz, &yaw);
+        if (hover)
+            ardrone_at_set_progress_cmd(1, phi, theta, gaz, yaw);
+        else
+            ardrone_at_set_progress_cmd(0, 0, 0, 0, 0);
+    }
+
 
     return C_OK;
 }
