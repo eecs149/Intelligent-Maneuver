@@ -36,7 +36,7 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
     while (db_tryget(db, "drone_command", buffer, sizeof(buffer)) != -1)
     {
         sscanf(buffer, "%d,%f,%f,%f,%f", %hover, &phi, &theta, &gaz, &yaw);
-        if (hover)
+        if (!hover)
             ardrone_at_set_progress_cmd(1, phi, theta, gaz, yaw);
         else
             ardrone_at_set_progress_cmd(0, 0, 0, 0, 0);
