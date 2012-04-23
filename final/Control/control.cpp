@@ -77,6 +77,10 @@ int main(int argc, char* argv[]) {
 
     // THE state of the main control
     State state = READ_LIDAR;
+    double dx;
+    double dy;
+    double newPhi;
+    double distance;
 
     sf::RenderWindow window(sf::VideoMode(800, 600), "2:00am");
     sf::Clock globalClock;
@@ -164,68 +168,45 @@ int main(int argc, char* argv[]) {
             pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
             printf("pathFound: %d\tpath length: %lu\n", pathFound, path.size());
 
-            //TODO: convert path to a vector (distance + direction)
-            //use vector_t struct in feedback.h
-            vector<vector_t> movement_vectors;
-            for (unsigned i = 1; i < path.size(); ++i)
-            {
-                double dx = path[i].x - path[i-1].x;
-                double dy = path[i].y - path[i-1].y;
-                double newPhi = fmod(atan2(dy, dx), 2 * M_PI);
-                double distance = sqrt(dx*dx + dy*dy);
-
-                // TODO: do something with newPhi and distance
-            }
-        }
-
-        else if (state == MOVE_FORWARD || 
-                 state == MOVE_SIDEWAY || 
-                 state == TURNING)
-        {
-            //TODO: feed vector to feedback loop
-            //  need to translate commands => send using something like _db_send
-            //  don't uncomment this yet
-            /*
+	        dx = path[1].x - path[0].x;
+            dy = path[1].y - path[0].y;
+            newPhi = fmod(atan2(dy, dx), 2 * M_PI);
+            distance = sqrt(dx*dx + dy*dy);
             initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
-            DroneMovement state = process_feedback(vector, globalClock.getElapsedTime().asMilliseconds());
-            switch (state) {
-            case FLY_FORWARD:    // positive x
-                front rotor: omega - delta_b
-                rear rotor:  omega + delta_a
-                break;
-            case FLY_BACKWARD:   // negative x
-                front rotor: omega + delta a
-                rear rotor:  omega - delta_b
-                break;
-            case FLY_LEFT:       // positive y
-                left rotor:  omega - delta_b
-                right rotor: omega + delta_a
-                break;
-            case FLY_RIGHT:      // negative y
-                left rotor:  omega + delta_a
-                right rotor: omega - delta_b
-                break;
-            case FLY_UP:         // positive z
-                all rotors:  omega + delta_a
-                break;
-            case FLY_DOWN:       // negative z
-                all rotors: omega - delta_b
-                break;
-            case TURN_LEFT:      // positive angle
-                front rotor: omega - delta_b
-                rear rotor:  omega - delta_b
-                left rotor:  omega + delta_a
-                right rotor: omega + delta_a
-                break;
-            case TURN_RIGHT:     // negative angle
-                front rotor: omega + delta_a
-                rear rotor:  omega + delta_a
-                left rotor:  omega - delta_b
-                right rotor: omega - delta_b
-                break;
-            default:             // default is hover
-                break;
-            }*/ 
+
+            state = TURNING;
+        }
+        
+        else if (state == TURNING)
+        {
+			float k = do_feedback_turn(newPhi, globalClock.getElapsedTime().asMilliseconds());
+			if (k != 0.0f)
+				turn(k);
+			else
+			{
+				initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
+				state = MOVE_FORWARD;
+			}
+        }
+        
+        else if (state == MOVE_FORWARD)
+        {
+        	float k = do_feedback_forward(distance, globalClock.getElapsedTime().asMilliseconds());
+			if (k != 0.0f)
+				moveForward(k);
+			else if (path.size() == 2)
+				state = READ_LIDAR;
+			else
+			{
+				path.pop_front();
+				dx = path[1].x - path[0].x;
+				dy = path[1].y - path[0].y;
+				newPhi = fmod(atan2(dy, dx), 2 * M_PI);
+				distance = sqrt(dx*dx + dy*dy);
+				initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
+				
+				state = TURNING;
+			}
         }
 
         // windows drawing
@@ -317,17 +298,17 @@ void hover()
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 1, 0, 0, 0, 0);
 }
 
-void moveSideway(float k) // left if k < 0, right if k > 0
+void moveSideway(float k) // left if k > 0, right if k < 0
 {
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, k, 0, 0, 0);
 }
 
-void moveForward(float k) // backward if k < 0, forward if k > 0
+void moveForward(float k) // forward if k > 0, backward if k < 0
 {
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0, k, 0, 0);
 }
 
-void turn(float k) // ?? if k < 0, ?? if k > 0
+void turn(float k) // left if k < 0, right if k > 0
 {
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0, 0, 0, k);
 }
