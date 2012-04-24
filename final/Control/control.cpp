@@ -118,16 +118,14 @@ int main(int argc, char* argv[]) {
             accumY += vy;
             accumPhi += gyroz; // TODO: is it gyroz
 
-            printf("%f, %f, %f\n", accelx, accely, accelz);
-
             // TODO: Determine and compensate for ardrone drift
             // Need the ABSOLUTE odometer readings, meaning the accumulated values
 
-            //CObservationOdometryPtr obs = CObservationOdometry::Create();
-            //obs->odometry = CPose2D(accumX, accumY, accumPhi);
-            //obs->hasEncodersInfo = false;
-            //obs->hasVelocities = false;
-            //icp_slam.processObservation(obs);
+            CObservationOdometryPtr obs = CObservationOdometry::Create();
+            obs->odometry = CPose2D(accumX, accumY, accumPhi);
+            obs->hasEncodersInfo = false;
+            obs->hasVelocities = false;
+            icp_slam.processObservation(obs);
         }
 
         // get the map object and the grid representation of the map
