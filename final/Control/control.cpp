@@ -179,34 +179,34 @@ int main(int argc, char* argv[]) {
         
         else if (state == TURNING)
         {
-			float k = do_feedback_turn(newPhi, globalClock.getElapsedTime().asMilliseconds());
-			if (k != 0.0f)
-				turn(k);
-			else
-			{
-				initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
-				state = MOVE_FORWARD;
-			}
+            float k = do_feedback_turn(newPhi, globalClock.getElapsedTime().asMilliseconds());
+            if (k != 0.0f)
+                turn(k);
+            else
+            {
+                initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
+                state = MOVE_FORWARD;
+            }
         }
-        
+
         else if (state == MOVE_FORWARD)
         {
-        	float k = do_feedback_forward(distance, globalClock.getElapsedTime().asMilliseconds());
-			if (k != 0.0f)
-				moveForward(k);
-			else if (path.size() == 2)
-				state = READ_LIDAR;
-			else
-			{
-				path.pop_front();
-				dx = path[1].x - path[0].x;
-				dy = path[1].y - path[0].y;
-				newPhi = fmod(atan2(dy, dx), 2 * M_PI);
-				distance = sqrt(dx*dx + dy*dy);
-				initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
+            float k = do_feedback_forward(distance, globalClock.getElapsedTime().asMilliseconds());
+            if (k != 0.0f)
+                moveForward(k);
+            else if (path.size() == 2)
+                state = READ_LIDAR;
+            else
+            {
+                path.pop_front();
+                dx = path[1].x - path[0].x;
+                dy = path[1].y - path[0].y;
+                newPhi = fmod(atan2(dy, dx), 2 * M_PI);
+                distance = sqrt(dx*dx + dy*dy);
+                initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
 				
-				state = TURNING;
-			}
+                state = TURNING;
+            }
         }
 
         // windows drawing
