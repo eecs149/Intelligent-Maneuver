@@ -1,5 +1,5 @@
 #!/bin/bash
-ps aux | grep -v grep | grep -e 'memdb/memdb\.py' | awk '{print $2}' | xargs kill
-killall ardrone_comm
-killall control
+pkill -f memdb
+pkill ardrone_comm
+pkill control
 

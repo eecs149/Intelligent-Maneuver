@@ -1,8 +1,9 @@
-#include <ardrone_tool/Navdata/ardrone_navdata_client.h>
-
-#include <Navdata/navdata.h>
-#include <memdb.h>
 #include <stdio.h>
+
+#include <ardrone_tool/Navdata/ardrone_navdata_client.h>
+#include <Navdata/navdata.h>
+
+#include "../../../memdb/memdb.h"
 
 int db;
 /* Initialization local variables before event loop  */
@@ -19,14 +20,11 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
     const navdata_time_t*nd_time = &navdata->navdata_time;
     const navdata_phys_measures_t* nfr = &navdata->navdata_phys_measures;
     char buffer[1024];
-    int hover = 0; // boolean indicating whether it's hovering or not
-    float phi; // left/right angle
-    float theta; // front/back angle
-    float gaz; // verticle speed
-    float yaw; // angular speed
+
+//    printf("%4.3f, %4.3f, %4.3f\n", nd->vx, nd->vy, nd->vz);
 
     // stream to memdb
-    db_printf(db, "navdata", "%u,%f,%f,%f,%d,%f,%f,%f,%f,%f",
+    db_printf(db, "navdata", "%u,%4.3f,%4.3f,%4.3f,%d,%f,%f,%f,%f,%f",
               nd_time->time,
               nd->vx, nd->vy, nd->vz,
               nfr->phys_accs[ACC_X], nfr->phys_accs[ACC_Y], nfr->phys_accs[ACC_Z],

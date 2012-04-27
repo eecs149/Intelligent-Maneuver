@@ -15,8 +15,8 @@ if(COMMAND cmake_policy)
 FIND_PACKAGE( MRPT REQUIRED base obs slam gui )    # WARNING: Add all the MRPT libs used by your program: "gui", "obs", "slam",etc. 
 
 # Declare the target (an executable)
-ADD_EXECUTABLE(control control.cpp pathfinder.cpp)
-TARGET_LINK_LIBRARIES(control ${MRPT_LIBS} sfml-graphics sfml-window)
+ADD_EXECUTABLE(control control.cpp pathfinder.cpp feedback.cpp)
+TARGET_LINK_LIBRARIES(control ${MRPT_LIBS} sfml-graphics sfml-window sfml-system)
 
 IF(WIN32)
     TARGET_LINK_LIBRARIES(control ws2_32)

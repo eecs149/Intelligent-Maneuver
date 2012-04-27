@@ -16,7 +16,7 @@
 
 #include <SFML/Graphics.hpp>
 
-#include "memdb.h"
+#include "../memdb/memdb.h"
 #include "pathfinder.h"
 #include "feedback.h"
 
@@ -45,8 +45,11 @@ void moveSideway(float k); // left if k < 0, right if k > 0
 void moveForward(float k); // backward if k < 0, forward if k > 0
 void turn(float k); // ?? if k < 0, ?? if k > 0
 
-int main(int argc, char* argv[]) {
+float vx, vy, vz;
+float accelx, accely, accelz;
+float gyrox, gyroy, gyroz;
 
+int main(int argc, char* argv[]) {
     if (argc < 2)
     {
         puts("Not enough arguments.");
@@ -75,15 +78,18 @@ int main(int argc, char* argv[]) {
     PathFinder pathFinder(resolution);
     deque<TPoint2D> path;
 
+    sf::Clock globalClock;
+
     // THE state of the main control
-    State state = READ_LIDAR;
+    State state = MOVE_FORWARD;
     double dx;
     double dy;
     double newPhi;
-    double distance;
+    double distance = 10;
+
+    initialize_feedback(globalClock.getElapsedTime().asSeconds());
 
     sf::RenderWindow window(sf::VideoMode(800, 600), "2:00am");
-    sf::Clock globalClock;
     window.setVerticalSyncEnabled(true);
     sf::Texture texture;
     texture.create(800, 600);
@@ -91,6 +97,8 @@ int main(int argc, char* argv[]) {
     sf::Sprite sprite(texture);
     sf::Clock fpsClock;
     int frameCount = 0;
+
+    sleep(10);
 
     while (window.isOpen()) { // TODO: What will be our terminal case? target location reached?
         sf::Event event;
@@ -109,7 +117,6 @@ int main(int argc, char* argv[]) {
         while (db_tryget(db, "navdata", buffer, sizeof(buffer)) != -1)
         {
             unsigned time;
-            float vx, vy, vz, accelx, accely, accelz, gyrox, gyroy, gyroz;
             sscanf(buffer, "%u,%f,%f,%f,%f,%f,%f,%f,%f,%f",
                    &time, &vx, &vy, &vz, &accelx, &accely, &accelz, &gyrox, &gyroy, &gyroz);
             
@@ -125,7 +132,7 @@ int main(int argc, char* argv[]) {
             obs->odometry = CPose2D(accumX, accumY, accumPhi);
             obs->hasEncodersInfo = false;
             obs->hasVelocities = false;
-            icp_slam.processObservation(obs);
+//            icp_slam.processObservation(obs);
         }
 
         // get the map object and the grid representation of the map
@@ -167,31 +174,31 @@ int main(int argc, char* argv[]) {
             bool pathFound = true;
             pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
             printf("pathFound: %d\tpath length: %lu\n", pathFound, path.size());
-
-	        dx = path[1].x - path[0].x;
+            dx = path[1].x - path[0].x;
             dy = path[1].y - path[0].y;
             newPhi = fmod(atan2(dy, dx), 2 * M_PI);
             distance = sqrt(dx*dx + dy*dy);
-            initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
+            initialize_feedback(globalClock.getElapsedTime().asSeconds());
 
             state = TURNING;
         }
         
         else if (state == TURNING)
         {
-            float k = do_feedback_turn(newPhi, globalClock.getElapsedTime().asMilliseconds());
+            float k = do_feedback_turn(newPhi, globalClock.getElapsedTime().asSeconds());
             if (k != 0.0f)
                 turn(k);
             else
             {
-                initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
+                initialize_feedback(globalClock.getElapsedTime().asSeconds());
                 state = MOVE_FORWARD;
             }
         }
 
         else if (state == MOVE_FORWARD)
         {
-            float k = do_feedback_forward(distance, globalClock.getElapsedTime().asMilliseconds());
+            float k = do_feedback_forward(distance, globalClock.getElapsedTime().asSeconds());
+	    printf("k: %f\n", k);
             if (k != 0.0f)
                 moveForward(k);
             else if (path.size() == 2)
@@ -203,7 +210,7 @@ int main(int argc, char* argv[]) {
                 dy = path[1].y - path[0].y;
                 newPhi = fmod(atan2(dy, dx), 2 * M_PI);
                 distance = sqrt(dx*dx + dy*dy);
-                initialize_feedback(globalClock.getElapsedTime().asMilliseconds());
+                initialize_feedback(globalClock.getElapsedTime().asSeconds());
 				
                 state = TURNING;
             }
