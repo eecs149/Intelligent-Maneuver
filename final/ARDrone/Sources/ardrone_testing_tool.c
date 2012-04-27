@@ -21,12 +21,10 @@
 #include <VP_Api/vp_api_thread_helper.h>
 #include <VP_Os/vp_os_signal.h>
 
+#include <memdb.h>
+
 static int32_t exit_ihm_program = 1;
-
-extern volatile float32_t accels[3];
-extern volatile float32_t vels[3]; 
-extern volatile float32_t angles[3]; 
-
+extern int db;
 
 /* The delegate object calls this method during initialization of an ARDrone application */
 C_RESULT ardrone_tool_init_custom(int argc, char **argv)
@@ -58,6 +56,22 @@ C_RESULT signal_exit()
 
 /* This function is called in the update function, at a refresh rate of 20 ms */
 C_RESULT ardrone_tool_update_custom() {
+    // read from memdb and send to ardrone
+    char buffer[1024];
+    int hover = 0; // boolean indicating whether it's hovering or not
+    float phi; // left/right angle
+    float theta; // front/back angle
+    float gaz; // verticle speed
+    float yaw; // angular speed
+
+    while (db_tryget(db, "drone_command", buffer, sizeof(buffer)) != -1)
+    {
+        sscanf(buffer, "%d,%f,%f,%f,%f", &hover, &phi, &theta, &gaz, &yaw);
+        if (!hover)
+            ardrone_at_set_progress_cmd(1, phi, theta, gaz, yaw);
+        else
+            ardrone_at_set_progress_cmd(0, 0, 0, 0, 0);
+    }
 
     return C_OK;
 }
