@@ -6,7 +6,7 @@
 
 /* constants */
 #define DISTANCE_BIAS  5      // in mm
-#define ANGLE_BIAS     0.1    // in radians
+#define ANGLE_BIAS     5    // in degrees
 
 /* variables */
 float distance_travelled = 0.0f;
@@ -43,12 +43,20 @@ float do_feedback_turn(double phi_target, double dt) {
     angle_turned = fabs(gyroz) * dt;
     printf("gyrox: %f, gyroy: %f, gyroz: %f, angle_turned: %f\n",
            gyrox, gyroy, gyroz, angle_turned);
-    
+
     // if we haven't reached the target angle, keep going
     // and proportionally adjust the rotor velocity
-    if (phi_target - angle_turned > ANGLE_BIAS) {
-        return 1 - angle_turned - phi_target;   // might need another scale
+    
+    // turn left
+    if (phi_target > 0 && phi_target - angle_turned > ANGLE_BIAS) {
+        return angle_turned / phi_target - 1;
     }
+    
+    // turn right
+    else if (phi_target < 0 && phi_target - angle_turned > ANGLE_BIAS) {
+        return 1 - angle_turned / fabs(phi_target);
+    }
+
     else {
         return 0;
     }
