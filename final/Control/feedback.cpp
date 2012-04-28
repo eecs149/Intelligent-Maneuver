@@ -28,7 +28,7 @@ float do_feedback_forward(double distance_target, double dt) {
     // if we haven't reached the target distance, keep going
     // and proportionally adjust the rotor velocity
     if (distance_target - distance_travelled > DISTANCE_BIAS) {
-        return std::min(0.05 * (1 - distance_travelled / distance_target), 0.05);   // might need another scale
+        return std::min(0.05 * (1 - distance_travelled / distance_target), 0.05);
     }
     else {
         return 0;
@@ -49,12 +49,12 @@ float do_feedback_turn(double phi_target, double dt) {
     
     // turn left
     if (phi_target > 0 && phi_target - angle_turned > ANGLE_BIAS) {
-        return angle_turned / phi_target - 1;
+        return 1 - angle_turned / phi_target;
     }
     
     // turn right
-    else if (phi_target < 0 && phi_target - angle_turned > ANGLE_BIAS) {
-        return 1 - angle_turned / fabs(phi_target);
+    else if (phi_target < 0 && fabs(phi_target) - angle_turned > ANGLE_BIAS) {
+        return angle_turned / fabs(phi_target) - 1;
     }
 
     else {
