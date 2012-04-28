@@ -29,6 +29,7 @@ using namespace mrpt::slam;
 
 enum State
 {
+    INIT_HOVER,
     READ_LIDAR,
     PLAN,
     MOVE_FORWARD,
@@ -45,9 +46,9 @@ void moveSideway(float k); // left if k < 0, right if k > 0
 void moveForward(float k); // backward if k < 0, forward if k > 0
 void turn(float k); // ?? if k < 0, ?? if k > 0
 
-float vx, vy, vz;
-float accelx, accely, accelz;
-float gyrox, gyroy, gyroz;
+float vx = 0.0f, vy = 0.0f, vz = 0.0f;
+float accelx = 0.0f, accely = 0.0f, accelz = 0.0f;
+float gyrox = 0.0f, gyroy = 0.0f, gyroz = 0.0f;
 
 int main(int argc, char* argv[]) {
     if (argc < 2)
@@ -78,16 +79,17 @@ int main(int argc, char* argv[]) {
     PathFinder pathFinder(resolution);
     deque<TPoint2D> path;
 
+    // timing
     sf::Clock globalClock;
+    double prevTime = 0.0;
+    double dt = 0.0;
 
     // THE state of the main control
-    State state = MOVE_FORWARD;
+    State state = INIT_HOVER;
     double dx;
     double dy;
-    double newPhi;
-    double distance = 10;
-
-    initialize_feedback(globalClock.getElapsedTime().asSeconds());
+    double delta_distance = 100.0;
+    double delta_phi = 0.0;
 
     sf::RenderWindow window(sf::VideoMode(800, 600), "2:00am");
     window.setVerticalSyncEnabled(true);
@@ -98,7 +100,7 @@ int main(int argc, char* argv[]) {
     sf::Clock fpsClock;
     int frameCount = 0;
 
-    sleep(10);
+    globalClock.restart();
 
     while (window.isOpen()) { // TODO: What will be our terminal case? target location reached?
         sf::Event event;
@@ -112,6 +114,23 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        if (state == INIT_HOVER)
+        {
+            if (globalClock.elapsed().asSeconds() >= 10.0)
+            {
+                prevTime = globalClock.getElapsedTime().asSeconds();
+                initialize_feedback();
+                state = MOVE_FORWARD;
+                delta_distance = 100.0;
+            }
+            else
+                continue;
+        }
+        
+        double curTime = globalClock.getElapsedTime().asSeconds();
+        dt = curTime - prevTime;
+        prevTime = curTime;
+
         // read the navadata from the ardrone
         char buffer[1024];
         while (db_tryget(db, "navdata", buffer, sizeof(buffer)) != -1)
@@ -121,9 +140,9 @@ int main(int argc, char* argv[]) {
                    &time, &vx, &vy, &vz, &accelx, &accely, &accelz, &gyrox, &gyroy, &gyroz);
             
             // here goes the terrible part....
-            accumX += vx;
-            accumY += vy;
-            accumPhi += gyroz; // TODO: is it gyroz
+            accumX += vx * dt;
+            accumY += vy * dt;
+            accumPhi += gyroz * dt; // TODO: is it gyroz
 
             // TODO: Determine and compensate for ardrone drift
             // Need the ABSOLUTE odometer readings, meaning the accumulated values
@@ -176,28 +195,29 @@ int main(int argc, char* argv[]) {
             printf("pathFound: %d\tpath length: %lu\n", pathFound, path.size());
             dx = path[1].x - path[0].x;
             dy = path[1].y - path[0].y;
-            newPhi = fmod(atan2(dy, dx), 2 * M_PI);
-            distance = sqrt(dx*dx + dy*dy);
-            initialize_feedback(globalClock.getElapsedTime().asSeconds());
+            double newPhi = fmod(atan2(dy, dx), 2 * M_PI) * 57.2957795;
+            delta_phi = newPhi - fmod(accumPhi, 360);
+            delta_distance = sqrt(dx*dx + dy*dy);
+            initialize_feedback();
 
             state = TURNING;
         }
         
         else if (state == TURNING)
         {
-            float k = do_feedback_turn(newPhi, globalClock.getElapsedTime().asSeconds());
+            float k = do_feedback_turn(newPhi, dt);
             if (k != 0.0f)
                 turn(k);
             else
             {
-                initialize_feedback(globalClock.getElapsedTime().asSeconds());
+                initialize_feedback();
                 state = MOVE_FORWARD;
             }
         }
 
         else if (state == MOVE_FORWARD)
         {
-            float k = do_feedback_forward(distance, globalClock.getElapsedTime().asSeconds());
+            float k = do_feedback_forward(delta_distance, dt);
 	    printf("k: %f\n", k);
             if (k != 0.0f)
                 moveForward(k);
@@ -208,9 +228,10 @@ int main(int argc, char* argv[]) {
                 path.pop_front();
                 dx = path[1].x - path[0].x;
                 dy = path[1].y - path[0].y;
-                newPhi = fmod(atan2(dy, dx), 2 * M_PI);
-                distance = sqrt(dx*dx + dy*dy);
-                initialize_feedback(globalClock.getElapsedTime().asSeconds());
+                double newPhi = fmod(atan2(dy, dx), 2 * M_PI) * 57.295779;
+                delta_phi = newPhi - fmod(accumPhi, 360);
+                delta_distance = sqrt(dx*dx + dy*dy);
+                initialize_feedback();
 				
                 state = TURNING;
             }

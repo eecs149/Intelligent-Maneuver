@@ -9,14 +9,11 @@
 #define ANGLE_BIAS     0.1    // in radians
 
 /* variables */
-double start_time = 0.0;
 float distance_travelled = 0.0f;
 float angle_turned = 0.0f;
 
 /* from Protocol/navdata.c */
-
-void initialize_feedback(double time) {
-    start_time = time;
+void initialize_feedback() {
     distance_travelled = 0;
     angle_turned = 0;
 }
@@ -24,10 +21,9 @@ void initialize_feedback(double time) {
 /*
  * distance >= 0 
  */
-float do_feedback_forward(double distance_target, double time) {
-    distance_travelled = fabs(vx) * (time - start_time);
+float do_feedback_forward(double distance_target, double dt) {
+    distance_travelled = fabs(vx) * dt;
     printf("vx: %f, vy: %f, distance_traveled: %f\n", vx, vy, distance_travelled);
-    start_time = time;
     
     // if we haven't reached the target distance, keep going
     // and proportionally adjust the rotor velocity
@@ -43,9 +39,10 @@ float do_feedback_forward(double distance_target, double time) {
  * angle_target > 0 for turning left
  * angle_target < 0 for turning right
  */
-float do_feedback_turn(double phi_target, double time) {
-    angle_turned = fabs(gyroz) * (time - start_time);   //TODO: check this
-    start_time = time;
+float do_feedback_turn(double phi_target, double dt) {
+    angle_turned = fabs(gyroz) * dt;
+    printf("gyrox: %f, gyroy: %f, gyroz: %f, angle_turned: %f\n",
+           gyrox, gyroy, gyroz, angle_turned);
     
     // if we haven't reached the target angle, keep going
     // and proportionally adjust the rotor velocity
