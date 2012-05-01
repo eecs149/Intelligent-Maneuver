@@ -39,6 +39,13 @@ enum State
 };
 
 
+struct LidarDistance
+{
+    unsigned short distance;
+    unsigned short surfaceInfo;
+};
+
+
 db_t db;
 
 // all of the following k's range from -1 to 1
@@ -63,6 +70,14 @@ int main(int argc, char* argv[]) {
     if (db == -1)
     {
         puts("failed to connect to memdb.");
+        return -1;
+    }
+
+    // open for LIDAR reading
+    FILE *lidarFile = fopen(argv[2], "rb");
+    if (!lidarFile)
+    {
+        puts("failed to open lidar file.");
         return -1;
     }
     
@@ -99,6 +114,8 @@ int main(int argc, char* argv[]) {
     sf::Sprite sprite(texture);
     sf::Clock fpsClock;
     int frameCount = 0;
+    
+    float prev_gyroz;
 
     globalClock.restart();
 
@@ -124,21 +141,28 @@ int main(int argc, char* argv[]) {
         while (db_tryget(db, "navdata", buffer, sizeof(buffer)) != -1)
         {
             unsigned drone_dt_u;
+            float cur_gyroz;
             sscanf(buffer, "%u,%f,%f,%f,%f,%f,%f",
-                   &drone_dt_u, &vx, &vy, &vz, &gyrox, &gyroy, &gyroz);
+                   &drone_dt_u, &vx, &vy, &vz, &gyrox, &gyroy, &cur_gyroz);
             gyrox /= 1000;
             gyroy /= 1000;
             gyroz /= 1000;
-            gyroz = fmod(gyroz + 360, 360);
+            cur_gyroz = fmod(gyroz + 360, 360);
             double drone_dt = (double)drone_dt_u / 1e6;
             
             // here goes the terrible part....
             accumX += vx * drone_dt;
             accumY += vy * drone_dt;
-            accumPhi = gyroz;
-
-
-            // Need the ABSOLUTE odometer readings, meaning the accumulated values
+            float actual_angle_diff;
+            float angle_diff = cur_gyroz - prev_gyroz;
+            prev_gyroz = cur_gyroz;
+            if (angle_diff > 0)
+                actual_angle_diff  = angle_diff;
+            else if (angle_diff > -180)
+                actual_angle_diff = angle_diff;
+            else
+                actual_angle_diff = 360 + angle_diff;
+            gyroz += actual_angle_diff;
 
             CObservationOdometryPtr obs = CObservationOdometry::Create();
             obs->odometry = CPose2D(accumX, accumY, accumPhi);
@@ -146,6 +170,7 @@ int main(int argc, char* argv[]) {
             obs->hasVelocities = false;
 //            icp_slam.processObservation(obs);
         }
+
 
         if (state == INIT_HOVER)
         {
@@ -180,7 +205,7 @@ int main(int argc, char* argv[]) {
         // state machine actions
         if (state == READ_LIDAR)
         {
-            // Extract the laser scan info and convert it into a range scan observation to feed into icp-slam
+           // Extract the laser scan info and convert it into a range scan observation to feed into icp-slam
             CObservation2DRangeScanPtr obs = CObservation2DRangeScan::Create();
             // Need to define 2 values
             // 1.) scan: a vector of floats signalling the distances. Each element is a degree

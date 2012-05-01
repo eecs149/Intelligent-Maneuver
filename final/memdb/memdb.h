@@ -14,6 +14,9 @@ static int close(db_t db) { return closesocket(db); }
 #include <netinet/in.h>
 typedef int db_t;
 #endif
+#include <stdarg.h>
+#include <string.h>
+#include <stdlib.h>
 
 
 static db_t db_connect(const char* port) {
