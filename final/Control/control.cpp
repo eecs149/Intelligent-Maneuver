@@ -32,6 +32,7 @@ enum State
     INIT_HOVER,
     READ_LIDAR,
     PLAN,
+    HOVER,
     MOVE_FORWARD,
     MOVE_SIDEWAY,
     TURNING
@@ -47,8 +48,8 @@ void moveForward(float k); // backward if k < 0, forward if k > 0
 void turn(float k); // ?? if k < 0, ?? if k > 0
 
 float vx = 0.0f, vy = 0.0f, vz = 0.0f;
-float accelx = 0.0f, accely = 0.0f, accelz = 0.0f;
 float gyrox = 0.0f, gyroy = 0.0f, gyroz = 0.0f;
+float accumX = 0.0f, accumY = 0.0f, accumPhi = 0.0f;
 
 int main(int argc, char* argv[]) {
     if (argc < 2)
@@ -66,7 +67,6 @@ int main(int argc, char* argv[]) {
     }
     
     CConfigFile iniFile(argv[1]); // configurations file
-    float accumX = 0.0f, accumY = 0.0f, accumPhi = 0.0f;
 
     // Load configurations
     CMetricMapBuilderICP icp_slam;
@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
     State state = INIT_HOVER;
     double dx;
     double dy;
-    double delta_distance = 100.0;
+    double delta_distance = 0.0;
     double delta_phi = 0.0;
 
     sf::RenderWindow window(sf::VideoMode(800, 600), "2:00am");
@@ -114,19 +114,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        if (state == INIT_HOVER)
-        {
-            if (globalClock.elapsed().asSeconds() >= 10.0)
-            {
-                prevTime = globalClock.getElapsedTime().asSeconds();
-                initialize_feedback();
-                state = MOVE_FORWARD;
-                delta_distance = 100.0;
-            }
-            else
-                continue;
-        }
-        
+
         double curTime = globalClock.getElapsedTime().asSeconds();
         dt = curTime - prevTime;
         prevTime = curTime;
@@ -135,16 +123,21 @@ int main(int argc, char* argv[]) {
         char buffer[1024];
         while (db_tryget(db, "navdata", buffer, sizeof(buffer)) != -1)
         {
-            unsigned time;
-            sscanf(buffer, "%u,%f,%f,%f,%f,%f,%f,%f,%f,%f",
-                   &time, &vx, &vy, &vz, &accelx, &accely, &accelz, &gyrox, &gyroy, &gyroz);
+            unsigned drone_dt_u;
+            sscanf(buffer, "%u,%f,%f,%f,%f,%f,%f",
+                   &drone_dt_u, &vx, &vy, &vz, &gyrox, &gyroy, &gyroz);
+            gyrox /= 1000;
+            gyroy /= 1000;
+            gyroz /= 1000;
+            gyroz = fmod(gyroz + 360, 360);
+            double drone_dt = (double)drone_dt_u / 1e6;
             
             // here goes the terrible part....
-            accumX += vx * dt;
-            accumY += vy * dt;
-            accumPhi += gyroz * dt; // TODO: is it gyroz
+            accumX += vx * drone_dt;
+            accumY += vy * drone_dt;
+            accumPhi = gyroz;
 
-            // TODO: Determine and compensate for ardrone drift
+
             // Need the ABSOLUTE odometer readings, meaning the accumulated values
 
             CObservationOdometryPtr obs = CObservationOdometry::Create();
@@ -153,6 +146,21 @@ int main(int argc, char* argv[]) {
             obs->hasVelocities = false;
 //            icp_slam.processObservation(obs);
         }
+
+        if (state == INIT_HOVER)
+        {
+            if (globalClock.getElapsedTime().asSeconds() >= 10.0)
+            {
+                initialize_feedback();
+                state = MOVE_FORWARD;
+                //state = TURNING;
+                delta_phi = 90.0;
+                delta_distance = 4000.0/1.4;
+            }
+            else
+                continue;
+        }
+        
 
         // get the map object and the grid representation of the map
         CMultiMetricMap* curMapEst = icp_slam.getCurrentlyBuiltMetricMap();
@@ -205,22 +213,29 @@ int main(int argc, char* argv[]) {
         
         else if (state == TURNING)
         {
-            float k = do_feedback_turn(newPhi, dt);
+            float k = do_feedback_turn(delta_phi);
+            printf("turning k: %f\n", k);
             if (k != 0.0f)
                 turn(k);
             else
             {
-                initialize_feedback();
-                state = MOVE_FORWARD;
+                state = HOVER;
+        //        initialize_feedback();
+        //        state = MOVE_FORWARD;
             }
         }
 
         else if (state == MOVE_FORWARD)
         {
-            float k = do_feedback_forward(delta_distance, dt);
-	    printf("k: %f\n", k);
+            float k = do_feedback_forward(delta_distance);
+	    printf("forward k: %f\n", k);
             if (k != 0.0f)
                 moveForward(k);
+            else
+            {
+                state = HOVER;
+            }
+            /*
             else if (path.size() == 2)
                 state = READ_LIDAR;
             else
@@ -235,6 +250,12 @@ int main(int argc, char* argv[]) {
 				
                 state = TURNING;
             }
+            */
+        }
+        
+        else if (state == HOVER)
+        {
+            hover();
         }
 
         // windows drawing
@@ -323,21 +344,22 @@ int main(int argc, char* argv[]) {
 
 void hover()
 {
-    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 1, 0, 0, 0, 0);
+    printf("hovering!\n");
+    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 1, 0.0f, 0.0f, 0.0f, 0.0f);
 }
 
 void moveSideway(float k) // left if k > 0, right if k < 0
 {
-    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, k, 0, 0, 0);
+    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, k, 0.0f, 0.0f, 0.0f);
 }
 
 void moveForward(float k) // forward if k > 0, backward if k < 0
 {
-    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0, k, 0, 0);
+    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0.0f, k, 0.0f, 0.0f);
 }
 
 void turn(float k) // left if k < 0, right if k > 0
 {
-    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0, 0, 0, k);
+    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0.0f, 0.0f, 0.0f, k);
 }
 

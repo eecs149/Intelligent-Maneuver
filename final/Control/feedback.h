@@ -3,8 +3,8 @@
 
 void initialize_feedback();
 
-float do_feedback_forward(double distance, double dt);
-float do_feedback_turn(double phi, double dt);
+float do_feedback_forward(double distance);
+float do_feedback_turn(double phi);
 
 #endif
 

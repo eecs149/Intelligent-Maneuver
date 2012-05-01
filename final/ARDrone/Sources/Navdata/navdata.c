@@ -5,6 +5,8 @@
 
 #include "../../../memdb/memdb.h"
 
+#include <time.h>
+
 int db;
 /* Initialization local variables before event loop  */
 inline C_RESULT demo_navdata_client_init( void* data )
@@ -12,6 +14,8 @@ inline C_RESULT demo_navdata_client_init( void* data )
     db = db_connect("8765");
     return C_OK;
 }
+
+unsigned prevMicroseconds = 0;
 
 /* Receving navdata during the event loop */
 inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const navdata )
@@ -21,16 +25,20 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
     const navdata_phys_measures_t* nfr = &navdata->navdata_phys_measures;
     char buffer[1024];
 
-//    printf("%4.3f, %4.3f, %4.3f\n", nd->vx, nd->vy, nd->vz);
+    unsigned seconds = nd_time->time >> 21;
+    unsigned microseconds = nd_time->time & 0x1FFFFF;
+    microseconds += seconds * 1e6;
+
+    unsigned dt = 0;
+    if (prevMicroseconds != 0)
+        dt = microseconds - prevMicroseconds;
+    prevMicroseconds = microseconds;
 
     // stream to memdb
-    db_printf(db, "navdata", "%u,%4.3f,%4.3f,%4.3f,%d,%f,%f,%f,%f,%f",
-              nd_time->time,
+    db_printf(db, "navdata", "%u,%4.3f,%4.3f,%4.3f,%f,%f,%f",
+              dt,
               nd->vx, nd->vy, nd->vz,
-              nfr->phys_accs[ACC_X], nfr->phys_accs[ACC_Y], nfr->phys_accs[ACC_Z],
-              nfr->phys_gyros[GYRO_X], nfr->phys_gyros[GYRO_Y], nfr->phys_gyros[GYRO_Z]);
-
-
+              nd->theta, nd->phi, nd->psi);
     return C_OK;
 }
 

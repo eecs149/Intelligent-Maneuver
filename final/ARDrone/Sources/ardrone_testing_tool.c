@@ -22,16 +22,11 @@
 #include <VP_Os/vp_os_signal.h>
 
 #include "../../memdb/memdb.h"
-#include <signal.h>
+
+#include <time.h>
 
 static int32_t exit_ihm_program = 1;
 extern int db;
-
-void terminate(int i)
-{
-    ardrone_tool_set_ui_pad_start(0);
-    sleep(1);
-}
 
 /* The delegate object calls this method during initialization of an ARDrone application */
 C_RESULT ardrone_tool_init_custom(int argc, char **argv)
@@ -39,10 +34,7 @@ C_RESULT ardrone_tool_init_custom(int argc, char **argv)
     C_RESULT res;
     // Set drone to "takeoff" mode
     res = ardrone_tool_set_ui_pad_start(1);
-
-//    signal(SIGINT, terminate);
-//    signal(SIGABRT, terminate);
-//    signal(SIGTERM, terminate);
+    
     return res;
 }
 
@@ -79,7 +71,9 @@ C_RESULT ardrone_tool_update_custom() {
     {
         sscanf(buffer, "%d,%f,%f,%f,%f", &hover, &phi, &theta, &gaz, &yaw);
         if (!hover)
+        {
             ardrone_at_set_progress_cmd(1, phi, theta, gaz, yaw);
+        }
         else
             ardrone_at_set_progress_cmd(0, 0, 0, 0, 0);
     }
