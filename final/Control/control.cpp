@@ -73,14 +73,7 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    // open for LIDAR reading
-    FILE *lidarFile = fopen(argv[2], "rb");
-    if (!lidarFile)
-    {
-        puts("failed to open lidar file.");
-        return -1;
-    }
-    
+   
     CConfigFile iniFile(argv[1]); // configurations file
 
     // Load configurations
@@ -157,11 +150,19 @@ int main(int argc, char* argv[]) {
             float angle_diff = cur_gyroz - prev_gyroz;
             prev_gyroz = cur_gyroz;
             if (angle_diff > 0)
-                actual_angle_diff  = angle_diff;
-            else if (angle_diff > -180)
-                actual_angle_diff = angle_diff;
+            {
+                if (angle_diff > 180)
+                    actual_angle_diff = -360 + angle_diff;
+                else
+                    actual_angle_diff = angle_diff;
+            }
             else
-                actual_angle_diff = 360 + angle_diff;
+            {
+                if (angle_diff < -180)
+                    actual_angle_diff = 360 + angle_diff;
+                else
+                    actual_angle_diff = angle_diff;
+            }
             gyroz += actual_angle_diff;
 
             CObservationOdometryPtr obs = CObservationOdometry::Create();
@@ -180,7 +181,7 @@ int main(int argc, char* argv[]) {
                 state = MOVE_FORWARD;
                 //state = TURNING;
                 delta_phi = 90.0;
-                delta_distance = 4000.0/1.4;
+                delta_distance = 1000.0/1.0;
             }
             else
                 continue;
