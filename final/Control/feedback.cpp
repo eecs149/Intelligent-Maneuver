@@ -23,9 +23,9 @@ void initialize_feedback() {
  * distance >= 0 
  */
 float do_feedback_forward(double distance_target) {
-    //distance_travelled += fabs(vx) * dt;
     float distance_travelled = accumX - start_position;
     printf("accumX: %f, distance_traveled: %f\n", accumX, distance_travelled);
+
     // if we haven't reached the target distance, keep going
     // and proportionally adjust the rotor velocity
     if (fabs(distance_target - distance_travelled) > DISTANCE_BIAS) {
@@ -44,26 +44,17 @@ float do_feedback_forward(double distance_target) {
  */
 float do_feedback_turn(double phi_target) {
     float angle_turned = gyroz - start_angle;
-    printf("gyrox: %f, gyroy: %f, gyroz: %f, angle_turned: %f\n",
-           gyrox, gyroy, gyroz, angle_turned);
+    printf("gyroz: %f, angle_turned: %f\n", gyroz, angle_turned);
 
     // if we haven't reached the target angle, keep going
     // and proportionally adjust the rotor velocity
-    
-    // turn left
-    if (phi_target > 0 && phi_target - angle_turned > ANGLE_BIAS) {
-        puts("turning left");
-        return (phi_target - angle_turned)/300;  //1 - angle_turned / phi_target
-    }
-    
-    // turn right
-    else if (phi_target < 0 && fabs(phi_target) - angle_turned > ANGLE_BIAS) {
-        puts("turning right");        
-        return (fabs(phi_target) - angle_turned)/300;   //angle_turned / fabs(phi_target) - 1;
+    if (fabs(phi_target - angle_turned) > ANGLE_BIAS) {
+        puts("turning");
+        return (phi_target - angle_turned)/300;
     }
 
     else {
-        puts("done turning.");
+        puts("done turning");
         return 0.0f;
     }
 }
