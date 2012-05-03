@@ -35,7 +35,8 @@ enum State
     HOVER,
     MOVE_FORWARD,
     MOVE_SIDEWAY,
-    TURNING
+    TURNING,
+    TRANSITION_HOVER
 };
 
 
@@ -44,6 +45,19 @@ struct LidarDistance
     unsigned short distance;
     unsigned short surfaceInfo;
 };
+
+float median(const deque<float>& numbers)
+{
+    if (numbers.size() == 0)
+        return 0.0f;
+
+    deque<float> copy = numbers;
+    sort(copy.begin(), copy.end());
+    if (copy.size() % 2)
+        return copy[copy.size()/2];
+    else
+        return 0.5f * (copy[copy.size()/2-1] + copy[copy.size()/2]);
+}
 
 
 db_t db;
@@ -89,11 +103,13 @@ int main(int argc, char* argv[]) {
 
     // timing
     sf::Clock globalClock;
+    double transitionHoverStartTime;
     double prevTime = 0.0;
     double dt = 0.0;
 
     // THE state of the main control
     State state = INIT_HOVER;
+    State nextState;
     double dx;
     double dy;
     double delta_distance = 0.0;
@@ -109,6 +125,8 @@ int main(int argc, char* argv[]) {
     int frameCount = 0;
     
     float prev_gyroz;
+    deque<float> past_vx;
+    deque<float> past_vy;
 
     globalClock.restart();
 
@@ -137,15 +155,12 @@ int main(int argc, char* argv[]) {
             float cur_gyroz;
             sscanf(buffer, "%u,%f,%f,%f,%f,%f,%f",
                    &drone_dt_u, &vx, &vy, &vz, &gyrox, &gyroy, &cur_gyroz);
+
+            // compute the angle
             gyrox /= 1000;
             gyroy /= 1000;
-            gyroz /= 1000;
-            cur_gyroz = fmod(gyroz + 360, 360);
-            double drone_dt = (double)drone_dt_u / 1e6;
-            
-            // here goes the terrible part....
-            accumX += vx * drone_dt;
-            accumY += vy * drone_dt;
+            cur_gyroz /= 1000;
+            cur_gyroz = fmod(cur_gyroz + 360, 360);
             float actual_angle_diff;
             float angle_diff = cur_gyroz - prev_gyroz;
             prev_gyroz = cur_gyroz;
@@ -165,12 +180,24 @@ int main(int argc, char* argv[]) {
             }
             gyroz += actual_angle_diff;
 
+            // here goes the terrible part....
+            double drone_dt = (double)drone_dt_u / 1e6;
+            past_vx.push_back(vx);
+            past_vy.push_back(vy);
+            if (past_vx.size() > 19)
+            {
+                past_vx.pop_front();
+                past_vy.pop_front();
+            }
+
             CObservationOdometryPtr obs = CObservationOdometry::Create();
             obs->odometry = CPose2D(accumX, accumY, accumPhi);
             obs->hasEncodersInfo = false;
             obs->hasVelocities = false;
 //            icp_slam.processObservation(obs);
         }
+        accumX += median(past_vx) * dt;
+        accumY += median(past_vy) * dt;
 
 
         if (state == INIT_HOVER)
@@ -179,9 +206,9 @@ int main(int argc, char* argv[]) {
             {
                 initialize_feedback();
                 state = MOVE_FORWARD;
-                //state = TURNING;
-                delta_phi = 90.0;
-                delta_distance = 1000.0/1.0;
+//                state = TURNING;
+                delta_phi = 180.0;
+                delta_distance = 2000.0/1.7;
             }
             else
                 continue;
@@ -245,8 +272,10 @@ int main(int argc, char* argv[]) {
                 turn(k);
             else
             {
-                state = HOVER;
-        //        initialize_feedback();
+                nextState = MOVE_FORWARD;
+                state = TRANSITION_HOVER;
+                transitionHoverStartTime = curTime;
+                initialize_feedback();
         //        state = MOVE_FORWARD;
             }
         }
@@ -259,7 +288,10 @@ int main(int argc, char* argv[]) {
                 moveForward(k);
             else
             {
-                state = HOVER;
+                nextState = TURNING;
+                state = TRANSITION_HOVER;
+                transitionHoverStartTime = curTime;
+                initialize_feedback();
             }
             /*
             else if (path.size() == 2)
@@ -284,6 +316,15 @@ int main(int argc, char* argv[]) {
             hover();
         }
 
+        else if (state == TRANSITION_HOVER)
+        {
+            hover();
+            if (curTime - transitionHoverStartTime > 3.0)
+            {
+                state = nextState;
+            }
+        }
+ 
         // windows drawing
         window.clear(sf::Color::White);
         sf::View view;

@@ -30,7 +30,7 @@ float do_feedback_forward(double distance_target) {
     // and proportionally adjust the rotor velocity
     if (fabs(distance_target - distance_travelled) > DISTANCE_BIAS) {
         puts("going forward");
-        return (distance_target - distance_travelled)/20000 * -1;
+        return (distance_target - distance_travelled)/15000.0 * -1;
     }
     else {
         puts("done moving forward");
@@ -43,14 +43,13 @@ float do_feedback_forward(double distance_target) {
  * angle_target < 0 for turning right
  */
 float do_feedback_turn(double phi_target) {
-    float angle_turned = gyroz - start_angle;
+    float angle_turned = (gyroz - start_angle) * -1;
     printf("gyroz: %f, angle_turned: %f\n", gyroz, angle_turned);
 
     // if we haven't reached the target angle, keep going
     // and proportionally adjust the rotor velocity
     if (fabs(phi_target - angle_turned) > ANGLE_BIAS) {
-        puts("turning");
-        return (phi_target - angle_turned)/300;
+        return (phi_target - angle_turned)/300 * -1;
     }
 
     else {
