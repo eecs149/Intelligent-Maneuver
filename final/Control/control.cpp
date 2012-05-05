@@ -207,8 +207,9 @@ int main(int argc, char* argv[]) {
                 initialize_feedback();
                 state = MOVE_FORWARD;
 //                state = TURNING;
+                state = HOVER;
                 delta_phi = 180.0;
-                delta_distance = 2000.0/1.7;
+                delta_distance = 1000.0/2.0;
             }
             else
                 continue;
