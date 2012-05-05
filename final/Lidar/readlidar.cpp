@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include "../memdb/memdb.h"
+#include <termios.h>
+#include <fcntl.h>
 
 
 struct LidarPacket
@@ -19,15 +21,25 @@ int main(int argc, char* argv[])
 {
     if (argc != 3)
     {
-        fprintf(stderr, "incorrect number of arguments.");
+        fprintf(stderr, "USAGE: <lidar tty> <db port>");
         return -1;
     }
 
-    FILE *lidarFile = fopen(argv[1], "rb");
-    if (!lidarFile)
-    {
-        fprintf(stderr, "failed to open port for lidar readings: %s\n", 
-                argv[1]);
+    struct termios attrib;
+    int fd = open(argv[1], O_RDWR | O_NOCTTY | O_NDELAY);
+    if (tcgetattr(fd, &attrib) < 0) {
+        close(fd);
+        fprintf(stderr, "Failed to get attributes");
+        return -1;
+    }
+    if (cfsetispeed(&attrib, B115200) < 0 || cfsetospeed(&attrib, B115200) < 0) {
+        close(fd);
+        fprintf(stderr, "Failed to set speed");
+        return -1;
+    }
+    if (tcsetattr(fd, TCSAFLUSH, &attrib) < 0) {
+        close(fd);
+        fprintf(stderr, "Failed to apply config");
         return -1;
     }
 
@@ -41,12 +53,15 @@ int main(int argc, char* argv[])
     for (;;)
     {
         // loop until it has read 0xFA
-        while (fgetc(lidarFile) != 0xFA);
+        unsigned char val = 0;
+        while (val != 0xFA) {
+            read(fd, &val, 1);
+        }
 
         // read the whole packet
         unsigned char lidarPacket[22];
         lidarPacket[0] = 0xFA;
-        fread(lidarPacket + 1, sizeof(lidarPacket) - 1, 1, lidarFile);
+        read(fd, lidarPacket+1, sizeof(lidarPacket)-1);
 
         // compute and validate checksum
         unsigned int data_list[10];
@@ -64,7 +79,6 @@ int main(int argc, char* argv[])
         LidarPacket packet;
         memcpy(&packet, lidarPacket, sizeof(packet));
 
-        if (packet.sequence == 0xa0) {
         printf("%x, %x\n%x\t%x\n%x\t%x\n%x\t%x\n%x\t%x\n",
                packet.sequence, packet.speed,
                packet.measurements[0].distance, packet.measurements[0].surface,
@@ -72,7 +86,6 @@ int main(int argc, char* argv[])
                packet.measurements[2].distance, packet.measurements[2].surface,
                packet.measurements[3].distance, packet.measurements[3].surface);
         puts("=========================");
-        }
 
         // send to memdb
         unsigned *p = reinterpret_cast<unsigned*>(&lidarPacket);
