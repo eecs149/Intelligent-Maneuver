@@ -70,12 +70,21 @@ C_RESULT ardrone_tool_update_custom() {
     while (db_tryget(db, "drone_command", buffer, sizeof(buffer)) != -1)
     {
         sscanf(buffer, "%d,%f,%f,%f,%f", &hover, &phi, &theta, &gaz, &yaw);
-        if (!hover)
+        if (hover == 1) // hover
         {
+            printf("sending: 0, 0, 0, 0, 0\n");
+            ardrone_at_set_progress_cmd(0, 0, 0, 0, 0);
+        }
+        else if (hover == -1) // land
+        {
+            printf("sending the land command.\n");
+            ardrone_tool_set_ui_pad_start(0);
+        }
+        else // do stuff...
+        {
+            printf("sending: 1, %f, %f, %f, %f\n", phi, theta, gaz, yaw);
             ardrone_at_set_progress_cmd(1, phi, theta, gaz, yaw);
         }
-        else
-            ardrone_at_set_progress_cmd(0, 0, 0, 0, 0);
     }
 
     return C_OK;

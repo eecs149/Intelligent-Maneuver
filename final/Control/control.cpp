@@ -30,21 +30,34 @@ using namespace mrpt::slam;
 enum State
 {
     INIT_HOVER,
+    HOVER,
+    LAND,
     READ_LIDAR,
     PLAN,
-    HOVER,
     MOVE_FORWARD,
     MOVE_SIDEWAY,
     TURNING,
     TRANSITION_HOVER
 };
 
-
-struct LidarDistance
+struct LidarPacket
 {
-    unsigned short distance;
-    unsigned short surfaceInfo;
+    unsigned char FA;
+    unsigned char sequence;
+    unsigned short speed;
+    struct
+    {
+        unsigned short distance;
+        unsigned short surface;
+    } measurements[4];
 };
+
+struct PathCommand
+{
+    float delta_phi;
+    float delta_distance;
+};
+
 
 float median(const deque<float>& numbers)
 {
@@ -59,6 +72,25 @@ float median(const deque<float>& numbers)
         return 0.5f * (copy[copy.size()/2-1] + copy[copy.size()/2]);
 }
 
+float angle_diff(float a1, float a2)
+{
+    float angle_diff = a2 - a1;
+    if (angle_diff > 0)
+    {
+        if (angle_diff > 180)
+            return angle_diff - 360;
+        else
+            return angle_diff;
+    }
+    else
+    {
+        if (angle_diff < -180)
+            return angle_diff + 360;
+        else
+            return angle_diff;
+    }
+}
+
 
 db_t db;
 
@@ -67,6 +99,7 @@ void hover();
 void moveSideway(float k); // left if k < 0, right if k > 0
 void moveForward(float k); // backward if k < 0, forward if k > 0
 void turn(float k); // ?? if k < 0, ?? if k > 0
+void land();
 
 float vx = 0.0f, vy = 0.0f, vz = 0.0f;
 float gyrox = 0.0f, gyroy = 0.0f, gyroz = 0.0f;
@@ -80,7 +113,7 @@ int main(int argc, char* argv[]) {
     }
 
     // connect to memdb
-    db = db_connect("8765");
+    db = db_connect("8766");
     if (db == -1)
     {
         puts("failed to connect to memdb.");
@@ -100,6 +133,7 @@ int main(int argc, char* argv[]) {
     int resolution = 4;
     PathFinder pathFinder(resolution);
     deque<TPoint2D> path;
+    deque<PathCommand> pathCommands;
 
     // timing
     sf::Clock globalClock;
@@ -110,8 +144,6 @@ int main(int argc, char* argv[]) {
     // THE state of the main control
     State state = INIT_HOVER;
     State nextState;
-    double dx;
-    double dy;
     double delta_distance = 0.0;
     double delta_phi = 0.0;
 
@@ -161,24 +193,10 @@ int main(int argc, char* argv[]) {
             gyroy /= 1000;
             cur_gyroz /= 1000;
             cur_gyroz = fmod(cur_gyroz + 360, 360);
-            float actual_angle_diff;
-            float angle_diff = cur_gyroz - prev_gyroz;
+
+            gyroz += angle_diff(prev_gyroz, cur_gyroz);
+            accumPhi = gyroz;
             prev_gyroz = cur_gyroz;
-            if (angle_diff > 0)
-            {
-                if (angle_diff > 180)
-                    actual_angle_diff = -360 + angle_diff;
-                else
-                    actual_angle_diff = angle_diff;
-            }
-            else
-            {
-                if (angle_diff < -180)
-                    actual_angle_diff = 360 + angle_diff;
-                else
-                    actual_angle_diff = angle_diff;
-            }
-            gyroz += actual_angle_diff;
 
             // here goes the terrible part....
             double drone_dt = (double)drone_dt_u / 1e6;
@@ -205,11 +223,7 @@ int main(int argc, char* argv[]) {
             if (globalClock.getElapsedTime().asSeconds() >= 10.0)
             {
                 initialize_feedback();
-                state = MOVE_FORWARD;
-//                state = TURNING;
-                state = HOVER;
-                delta_phi = 180.0;
-                delta_distance = 1000.0/2.0;
+                state = PLAN;
             }
             else
                 continue;
@@ -235,31 +249,79 @@ int main(int argc, char* argv[]) {
         if (state == READ_LIDAR)
         {
            // Extract the laser scan info and convert it into a range scan observation to feed into icp-slam
-            CObservation2DRangeScanPtr obs = CObservation2DRangeScan::Create();
             // Need to define 2 values
             // 1.) scan: a vector of floats signalling the distances. Each element is a degree
             // 2.) validRange: a vector of ints where 1 signals the reading is good and 0 means its bad (and won't be used)
+
             while (db_tryget(db, "lidar", buffer, sizeof(buffer)) != -1)
             {
-                obs->scan.push_back(atof(buffer));
-                obs->validRange.push_back(1);
+                CObservation2DRangeScanPtr obs = CObservation2DRangeScan::Create();
+                LidarPacket packet;
+                unsigned *p = reinterpret_cast<unsigned*>(&packet);
+                sscanf(buffer, "%x,%x,%x,%x,%x",
+                       &p[0], &p[1], &p[2], &p[3], &p[4]);
+                obs->scan.resize(360, 0);
+                unsigned seq = (packet.sequence-0xA0)*4;
+                if (seq >= 360)
+                {
+                    printf("wrong seq? %d\n", seq);
+                    continue;
+                }
+                obs->scan[seq] = packet.measurements[0].distance*0.00097560-0.030731;
+                obs->scan[seq+1] = packet.measurements[1].distance*0.00097560-0.030731;
+                obs->scan[seq+2] = packet.measurements[2].distance*0.00097560-0.030731;
+                obs->scan[seq+3] = packet.measurements[3].distance*0.00097560-0.030731;
+                obs->validRange.resize(360, 0);
+                obs->validRange[seq] = 1;
+                obs->validRange[seq+1] = 1;
+                obs->validRange[seq+2] = 1;
+                obs->validRange[seq+3] = 1;
+
+                printf("%d, %f, %f, %f, %f\n", seq, 
+                       packet.measurements[0].distance*0.00097560-0.030731,
+                       packet.measurements[1].distance*0.00097560-0.030731,
+                       packet.measurements[2].distance*0.00097560-0.030731,
+                       packet.measurements[3].distance*0.00097560-0.030731);
+                puts("=========================");
+
+                icp_slam.processObservation(obs);
             }
-            icp_slam.processObservation(obs);
         }
 
 
         else if (state == PLAN)
         {
             // Perform path finding
+            /*
             pathFinder.update(*gridMap);
             bool pathFound = true;
-            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(890, 270), path);
+            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(gridRobX+1000, gridRobY), path);
             printf("pathFound: %d\tpath length: %lu\n", pathFound, path.size());
-            dx = path[1].x - path[0].x;
-            dy = path[1].y - path[0].y;
-            double newPhi = fmod(atan2(dy, dx), 2 * M_PI) * 57.2957795;
-            delta_phi = newPhi - fmod(accumPhi, 360);
-            delta_distance = sqrt(dx*dx + dy*dy);
+            */
+            path.push_back(TPoint2D(gridRobX, gridRobY));
+            path.push_back(TPoint2D(gridRobX+1000, gridRobY));
+            path.push_back(TPoint2D(gridRobX+1000, gridRobY+1000));
+            path.push_back(TPoint2D(gridRobX, gridRobY+1000));
+            path.push_back(TPoint2D(gridRobX, gridRobY));
+            float prevAngle = 0.0f;
+            for (int i = 1; i < path.size(); i++)
+            {
+                float dx = path[i].x - path[i-1].x;
+                float dy = path[i].y - path[i-1].y;
+                float angle = (float)fmod(atan2(dy, dx)*57.2957795 + 360, 360);
+                PathCommand command;
+                command.delta_phi = angle_diff(prevAngle, angle);
+                command.delta_distance = sqrt(dx*dx + dy*dy);
+                pathCommands.push_back(command);
+                prevAngle = angle;
+            }
+
+            for (int i = 0; i < path.size(); ++i)
+                printf("%f, %f\n", pathCommands[i].delta_phi, pathCommands[i].delta_distance);
+
+            delta_phi = pathCommands[0].delta_phi;
+            delta_distance = pathCommands[0].delta_distance;
+            pathCommands.pop_front();
             initialize_feedback();
 
             state = TURNING;
@@ -268,7 +330,7 @@ int main(int argc, char* argv[]) {
         else if (state == TURNING)
         {
             float k = do_feedback_turn(delta_phi);
-            printf("turning k: %f\n", k);
+            printf("delta_phi: %f, turning k: %f\n", delta_phi, k);
             if (k != 0.0f)
                 turn(k);
             else
@@ -276,40 +338,29 @@ int main(int argc, char* argv[]) {
                 nextState = MOVE_FORWARD;
                 state = TRANSITION_HOVER;
                 transitionHoverStartTime = curTime;
-                initialize_feedback();
-        //        state = MOVE_FORWARD;
+                state = MOVE_FORWARD;
             }
         }
 
         else if (state == MOVE_FORWARD)
         {
             float k = do_feedback_forward(delta_distance);
-	    printf("forward k: %f\n", k);
+	    printf("delta_distance: %f, forward k: %f\n", delta_distance, k);
             if (k != 0.0f)
                 moveForward(k);
+            else if (pathCommands.size() == 0)
+                state = LAND;
             else
             {
+                delta_phi = pathCommands[0].delta_phi;
+                delta_distance = pathCommands[0].delta_distance;
+                pathCommands.pop_front();
+                initialize_feedback();
+				
                 nextState = TURNING;
                 state = TRANSITION_HOVER;
                 transitionHoverStartTime = curTime;
-                initialize_feedback();
             }
-            /*
-            else if (path.size() == 2)
-                state = READ_LIDAR;
-            else
-            {
-                path.pop_front();
-                dx = path[1].x - path[0].x;
-                dy = path[1].y - path[0].y;
-                double newPhi = fmod(atan2(dy, dx), 2 * M_PI) * 57.295779;
-                delta_phi = newPhi - fmod(accumPhi, 360);
-                delta_distance = sqrt(dx*dx + dy*dy);
-                initialize_feedback();
-				
-                state = TURNING;
-            }
-            */
         }
         
         else if (state == HOVER)
@@ -320,10 +371,16 @@ int main(int argc, char* argv[]) {
         else if (state == TRANSITION_HOVER)
         {
             hover();
-            if (curTime - transitionHoverStartTime > 3.0)
+            if (curTime - transitionHoverStartTime > 2.0)
             {
                 state = nextState;
+                initialize_feedback();
             }
+        }
+
+        else if (state == LAND)
+        {
+            land();
         }
  
         // windows drawing
@@ -406,28 +463,38 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    puts("exiting?!");
+
     return 0;
 }
 
 
 void hover()
 {
-    printf("hovering!\n");
+    puts("hovering!");
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 1, 0.0f, 0.0f, 0.0f, 0.0f);
 }
 
 void moveSideway(float k) // left if k > 0, right if k < 0
 {
+    puts("moveSideway!");
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, k, 0.0f, 0.0f, 0.0f);
 }
 
 void moveForward(float k) // forward if k > 0, backward if k < 0
 {
+    puts("moveForward!");
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0.0f, k, 0.0f, 0.0f);
 }
 
 void turn(float k) // left if k < 0, right if k > 0
 {
+    puts("turn!");
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0.0f, 0.0f, 0.0f, k);
 }
 
+void land()
+{
+    puts("landing!");
+    db_printf(db, "drone_command", "%d,%f,%f,%f,%f", -1, 0.0f, 0.0f, 0.0f, 0.0f);
+}

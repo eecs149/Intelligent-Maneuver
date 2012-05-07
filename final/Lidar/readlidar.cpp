@@ -50,6 +50,8 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+//    FILE *dump = fopen("lidar.dump", "wb");
+
     for (;;)
     {
         // loop until it has read 0xFA
@@ -63,6 +65,9 @@ int main(int argc, char* argv[])
         lidarPacket[0] = 0xFA;
         read(fd, lidarPacket+1, sizeof(lidarPacket)-1);
 
+        // dump it
+//        fwrite(lidarPacket, sizeof(lidarPacket), 1, dump);
+
         // compute and validate checksum
         unsigned int data_list[10];
         for (int i = 0; i < 10; ++i)
@@ -74,11 +79,19 @@ int main(int argc, char* argv[])
         checksum &= 0x7FFF;
         unsigned short expectedChecksum = *((unsigned short*)&lidarPacket[20]);
         if (checksum != expectedChecksum)
+        {
+            puts("bad checksum");
             continue;
+        }
 
         LidarPacket packet;
         memcpy(&packet, lidarPacket, sizeof(packet));
 
+//        for (int i = 0; i < 20; ++i)
+//            printf("%X ", lidarPacket[i]);
+//        putchar('\n');
+        /*
+        if (packet.sequence == 0xa0 || packet.sequence == 0xa1 || packet.sequence == 0xf9 || packet.sequence == 0xa2 || packet.sequence == 0xf8) {
         printf("%x, %x\n%x\t%x\n%x\t%x\n%x\t%x\n%x\t%x\n",
                packet.sequence, packet.speed,
                packet.measurements[0].distance, packet.measurements[0].surface,
@@ -86,6 +99,8 @@ int main(int argc, char* argv[])
                packet.measurements[2].distance, packet.measurements[2].surface,
                packet.measurements[3].distance, packet.measurements[3].surface);
         puts("=========================");
+        }
+        */
 
         // send to memdb
         unsigned *p = reinterpret_cast<unsigned*>(&lidarPacket);

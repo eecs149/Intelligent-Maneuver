@@ -6,8 +6,8 @@
 #include "control.h"
 
 /* constants */
-#define DISTANCE_BIAS  100  // in mm
-#define ANGLE_BIAS     5    // in degrees
+#define DISTANCE_BIAS  70  // in mm
+#define ANGLE_BIAS     2   // in degrees
 
 /* variables */
 float start_position = 0.0f;
@@ -24,16 +24,14 @@ void initialize_feedback() {
  */
 float do_feedback_forward(double distance_target) {
     float distance_travelled = accumX - start_position;
-    printf("accumX: %f, distance_traveled: %f\n", accumX, distance_travelled);
+    printf("accumX: %f, start_position: %f, distance_traveled: %f\n", accumX, start_position, distance_travelled);
 
     // if we haven't reached the target distance, keep going
     // and proportionally adjust the rotor velocity
     if (fabs(distance_target - distance_travelled) > DISTANCE_BIAS) {
-        puts("going forward");
-        return (distance_target - distance_travelled)/15000.0 * -1;
+        return (distance_target - distance_travelled)/10000.0 * -1;
     }
     else {
-        puts("done moving forward");
         return 0.0f;
     }
 }
@@ -49,11 +47,10 @@ float do_feedback_turn(double phi_target) {
     // if we haven't reached the target angle, keep going
     // and proportionally adjust the rotor velocity
     if (fabs(phi_target - angle_turned) > ANGLE_BIAS) {
-        return (phi_target - angle_turned)/300 * -1;
+        return (phi_target - angle_turned)/250 * -1;
     }
 
     else {
-        puts("done turning");
         return 0.0f;
     }
 }

@@ -11,7 +11,9 @@ int db;
 /* Initialization local variables before event loop  */
 inline C_RESULT demo_navdata_client_init( void* data )
 {
-    db = db_connect("8765");
+    db = db_connect("8766");
+    if (db == -1)
+        exit(-1);
     return C_OK;
 }
 
