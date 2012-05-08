@@ -40,18 +40,6 @@ enum State
     TRANSITION_HOVER
 };
 
-struct LidarPacket
-{
-    unsigned char FA;
-    unsigned char sequence;
-    unsigned short speed;
-    struct
-    {
-        unsigned short distance;
-        unsigned short surface;
-    } measurements[4];
-};
-
 struct PathCommand
 {
     float delta_phi;
@@ -248,7 +236,7 @@ int main(int argc, char* argv[]) {
         // state machine actions
         if (state == READ_LIDAR)
         {
-           // Extract the laser scan info and convert it into a range scan observation to feed into icp-slam
+            // Extract the laser scan info and convert it into a range scan observation to feed into icp-slam
             // Need to define 2 values
             // 1.) scan: a vector of floats signalling the distances. Each element is a degree
             // 2.) validRange: a vector of ints where 1 signals the reading is good and 0 means its bad (and won't be used)
@@ -256,33 +244,21 @@ int main(int argc, char* argv[]) {
             while (db_tryget(db, "lidar", buffer, sizeof(buffer)) != -1)
             {
                 CObservation2DRangeScanPtr obs = CObservation2DRangeScan::Create();
-                LidarPacket packet;
-                unsigned *p = reinterpret_cast<unsigned*>(&packet);
-                sscanf(buffer, "%x,%x,%x,%x,%x",
-                       &p[0], &p[1], &p[2], &p[3], &p[4]);
                 obs->scan.resize(360, 0);
-                unsigned seq = (packet.sequence-0xA0)*4;
-                if (seq >= 360)
-                {
-                    printf("wrong seq? %d\n", seq);
-                    continue;
-                }
-                obs->scan[seq] = packet.measurements[0].distance*0.00097560-0.030731;
-                obs->scan[seq+1] = packet.measurements[1].distance*0.00097560-0.030731;
-                obs->scan[seq+2] = packet.measurements[2].distance*0.00097560-0.030731;
-                obs->scan[seq+3] = packet.measurements[3].distance*0.00097560-0.030731;
                 obs->validRange.resize(360, 0);
-                obs->validRange[seq] = 1;
-                obs->validRange[seq+1] = 1;
-                obs->validRange[seq+2] = 1;
-                obs->validRange[seq+3] = 1;
 
-                printf("%d, %f, %f, %f, %f\n", seq, 
-                       packet.measurements[0].distance*0.00097560-0.030731,
-                       packet.measurements[1].distance*0.00097560-0.030731,
-                       packet.measurements[2].distance*0.00097560-0.030731,
-                       packet.measurements[3].distance*0.00097560-0.030731);
-                puts("=========================");
+                char sensorId;
+                float distance;
+                sscanf("%c,%f\n", &sensorId, &distance);
+
+                int sensorIndex = (sensorId - 'A') * 90;
+                int startIndex = (sensorIndex + 345) % 360;
+                int endIndex = (sensorIndex + 375) % 360;
+                for (int i = startIndex; i < endIndex; ++i)
+                {
+                    obs->scan[i] = distance;
+                    obs->validRange[i] = 1;
+                }
 
                 icp_slam.processObservation(obs);
             }
