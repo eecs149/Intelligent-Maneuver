@@ -94,17 +94,17 @@ float gyrox = 0.0f, gyroy = 0.0f, gyroz = 0.0f;
 float accumX = 0.0f, accumY = 0.0f, accumPhi = 0.0f;
 
 int main(int argc, char* argv[]) {
-    if (argc < 2)
+    if (argc != 3)
     {
-        puts("Not enough arguments.");
+        puts("Usage: <ICP_SLAM init file> <port>");
         return -1;
     }
 
     // connect to memdb
-    db = db_connect("8766");
+    db = db_connect(argv[2]);
     if (db == -1)
     {
-        puts("failed to connect to memdb.");
+        puts("control failed to connect to memdb.");
         return -1;
     }
 
@@ -126,6 +126,7 @@ int main(int argc, char* argv[]) {
     // timing
     sf::Clock globalClock;
     double transitionHoverStartTime;
+    double startReadLidarTime;
     double prevTime = 0.0;
     double dt = 0.0;
 
@@ -211,7 +212,8 @@ int main(int argc, char* argv[]) {
             if (globalClock.getElapsedTime().asSeconds() >= 10.0)
             {
                 initialize_feedback();
-                state = PLAN;
+                state = READ_LIDAR;
+                startReadLidarTime = curTime;
             }
             else
                 continue;
@@ -241,44 +243,50 @@ int main(int argc, char* argv[]) {
             // 1.) scan: a vector of floats signalling the distances. Each element is a degree
             // 2.) validRange: a vector of ints where 1 signals the reading is good and 0 means its bad (and won't be used)
 
-            while (db_tryget(db, "lidar", buffer, sizeof(buffer)) != -1)
+            while (db_tryget(db, "ultrasonic", buffer, sizeof(buffer)) != -1)
             {
                 CObservation2DRangeScanPtr obs = CObservation2DRangeScan::Create();
+                obs->aperture = M_PI * 2;
                 obs->scan.resize(360, 0);
                 obs->validRange.resize(360, 0);
 
-                char sensorId;
-                float distance;
-                sscanf("%c,%f\n", &sensorId, &distance);
+                float distances[4];
+                sscanf(buffer, "%f,%f,%f,%f", distances, distances+1, distances+2, distances+3);
 
-                int sensorIndex = (sensorId - 'A') * 90;
-                int startIndex = (sensorIndex + 345) % 360;
-                int endIndex = (sensorIndex + 375) % 360;
-                for (int i = startIndex; i < endIndex; ++i)
+                for (int k = 0; k < 4; ++k)
                 {
-                    obs->scan[i] = distance;
-                    obs->validRange[i] = 1;
+                    int sensorIndex = k * 90;
+                    int startIndex = sensorIndex - 15;
+                    int endIndex = sensorIndex + 15;
+                    for (int i = startIndex; i < endIndex; ++i)
+                    {
+                        int j = (i + 360) % 360;
+                        obs->scan[j] = distances[k];
+                        obs->validRange[j] = 1;
+                    }
                 }
 
                 icp_slam.processObservation(obs);
             }
+
+            if (curTime - startReadLidarTime >= 5.0)
+                state = PLAN;
         }
 
 
         else if (state == PLAN)
         {
             // Perform path finding
-            /*
             pathFinder.update(*gridMap);
             bool pathFound = true;
-            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(gridRobX+1000, gridRobY), path);
+            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(gridRobX+2000, gridRobY), path);
             printf("pathFound: %d\tpath length: %lu\n", pathFound, path.size());
-            */
-            path.push_back(TPoint2D(gridRobX, gridRobY));
+/*            path.push_back(TPoint2D(gridRobX, gridRobY));
             path.push_back(TPoint2D(gridRobX+1000, gridRobY));
             path.push_back(TPoint2D(gridRobX+1000, gridRobY+1000));
             path.push_back(TPoint2D(gridRobX, gridRobY+1000));
             path.push_back(TPoint2D(gridRobX, gridRobY));
+            */
             float prevAngle = 0.0f;
             for (int i = 1; i < path.size(); i++)
             {
@@ -300,7 +308,7 @@ int main(int argc, char* argv[]) {
             pathCommands.pop_front();
             initialize_feedback();
 
-            state = TURNING;
+            state = HOVER;
         }
         
         else if (state == TURNING)

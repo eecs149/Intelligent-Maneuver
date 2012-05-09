@@ -8,10 +8,14 @@
 #include <time.h>
 
 int db;
+
+char *port;
+
 /* Initialization local variables before event loop  */
 inline C_RESULT demo_navdata_client_init( void* data )
 {
-    db = db_connect("8766");
+    printf("ardrone_tool port: %s\n", port);
+    db = db_connect(port);
     if (db == -1)
         exit(-1);
     return C_OK;
@@ -35,6 +39,8 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
     if (prevMicroseconds != 0)
         dt = microseconds - prevMicroseconds;
     prevMicroseconds = microseconds;
+
+    printf("Battery: %d\n", nd->vbat_flying_percentage);
 
     // stream to memdb
     db_printf(db, "navdata", "%u,%4.3f,%4.3f,%4.3f,%f,%f,%f",
