@@ -110,7 +110,7 @@ bool PathFinder::findPath(const TPoint2D& start, const TPoint2D& end, deque<TPoi
         if (pt.x > 0 && pt.y > 0 && !occupancyGrid(pt.y-1, pt.x-1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x-1))
             fringe.push(pt.getSuccessor(-1, -1, 14));
         // downleft
-        if (pt.x > 0 && pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y-1, pt.x-1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x-1))
+        if (pt.x > 0 && pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y+1, pt.x-1) && !occupancyGrid(pt.y+1, pt.x) && !occupancyGrid(pt.y, pt.x-1))
             fringe.push(pt.getSuccessor(-1, 1, 14));
         // upright
         if (pt.x+1 < occupancyGrid.width() && pt.y > 0 && !occupancyGrid(pt.y-1, pt.x+1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x+1))
