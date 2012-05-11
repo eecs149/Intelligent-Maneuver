@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <termios.h>
 #include <fcntl.h>
+#include <time.h>
 #include "../memdb/memdb.h"
 
 
@@ -21,8 +22,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    struct termios attrib;
-    int fd = open(argv[1], O_RDONLY);
+    struct termios attrib; int fd = open(argv[1], O_RDONLY);
     if (tcgetattr(fd, &attrib) < 0)
     {
         close(fd);
@@ -42,6 +42,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+//    FILE *dump = fopen("foo.dump", "w");
 
     float distances[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     int count = 0;
@@ -60,6 +61,7 @@ int main(int argc, char* argv[])
         if (distances[sensorId - 'A'] == 0.0f)
             count++;
         distances[sensorId - 'A'] = distance;
+//        fprintf(dump, "%s", line); fflush(dump);
 
         // send to memdb
         if (count == 4)

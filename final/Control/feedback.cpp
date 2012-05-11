@@ -15,7 +15,7 @@ float start_angle = 0.0f;
 
 /* from Protocol/navdata.c */
 void initialize_feedback() {
-    start_position = accumX;
+    start_position = accumDist;
     start_angle = gyroz;
 }
 
@@ -23,8 +23,9 @@ void initialize_feedback() {
  * distance >= 0 
  */
 float do_feedback_forward(double distance_target) {
-    float distance_travelled = accumX - start_position;
-    printf("accumX: %f, start_position: %f, distance_traveled: %f\n", accumX, start_position, distance_travelled);
+    float distance_travelled = accumDist - start_position;
+    printf("accumX: %f, accumY: %f, accumDist: %f, start_position: %f, distance_traveled: %f\n",
+           accumX, accumY, accumDist, start_position, distance_travelled);
 
     // if we haven't reached the target distance, keep going
     // and proportionally adjust the rotor velocity

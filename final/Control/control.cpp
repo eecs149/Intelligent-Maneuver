@@ -92,6 +92,7 @@ void land();
 float vx = 0.0f, vy = 0.0f, vz = 0.0f;
 float gyrox = 0.0f, gyroy = 0.0f, gyroz = 0.0f;
 float accumX = 0.0f, accumY = 0.0f, accumPhi = 0.0f;
+float accumDist;
 
 int main(int argc, char* argv[]) {
     if (argc != 3)
@@ -118,7 +119,7 @@ int main(int argc, char* argv[]) {
     icp_slam.initialize();
 
     // pathfinding
-    int resolution = 4;
+    int resolution = 8;
     PathFinder pathFinder(resolution);
     deque<TPoint2D> path;
     deque<PathCommand> pathCommands;
@@ -198,13 +199,18 @@ int main(int argc, char* argv[]) {
             }
 
             CObservationOdometryPtr obs = CObservationOdometry::Create();
-            obs->odometry = CPose2D(accumX, accumY, accumPhi);
+            obs->odometry = CPose2D(accumX/1000.0f, accumY/1000.0f, 0.0f);
             obs->hasEncodersInfo = false;
             obs->hasVelocities = false;
 //            icp_slam.processObservation(obs);
         }
         accumX += median(past_vx) * dt;
         accumY += median(past_vy) * dt;
+        accumDist = sqrt(pow(accumX, 2.0f) + pow(accumY, 2.0f));
+        if (fabs(accumX) > fabs(accumY) && accumX < 0)
+            accumDist = -accumDist;
+        if (fabs(accumY) > fabs(accumX) && accumY < 0)
+            accumDist = -accumDist;
 
 
         if (state == INIT_HOVER)
@@ -213,6 +219,7 @@ int main(int argc, char* argv[]) {
             {
                 initialize_feedback();
                 state = READ_LIDAR;
+                gyroz = accumPhi = 0.0f;
                 startReadLidarTime = curTime;
             }
             else
@@ -252,17 +259,26 @@ int main(int argc, char* argv[]) {
 
                 float distances[4];
                 sscanf(buffer, "%f,%f,%f,%f", distances, distances+1, distances+2, distances+3);
+                printf("Ultra: %f,%f,%f,%f\n", *distances, *(distances+1), *(distances+2), *(distances+3));
 
                 for (int k = 0; k < 4; ++k)
                 {
                     int sensorIndex = k * 90;
-                    int startIndex = sensorIndex - 15;
-                    int endIndex = sensorIndex + 15;
+                    int startIndex = sensorIndex - 20 + 180;
+                    int endIndex = sensorIndex + 20 + 180;
                     for (int i = startIndex; i < endIndex; ++i)
                     {
                         int j = (i + 360) % 360;
-                        obs->scan[j] = distances[k];
-                        obs->validRange[j] = 1;
+                        if (distances[k] >= 0)
+                        {
+                            obs->scan[j] = distances[k];
+                            obs->validRange[j] = 1;
+                        }
+                        else
+                        {
+                            obs->scan[j] = distances[k];
+                            obs->validRange[j] = 0;
+                        }
                     }
                 }
 
@@ -279,7 +295,7 @@ int main(int argc, char* argv[]) {
             // Perform path finding
             pathFinder.update(*gridMap);
             bool pathFound = true;
-            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(gridRobX+2000, gridRobY), path);
+            pathFound = pathFinder.findPath(TPoint2D(gridRobX, gridRobY), TPoint2D(gridRobX+40, gridRobY), path);
             printf("pathFound: %d\tpath length: %lu\n", pathFound, path.size());
 /*            path.push_back(TPoint2D(gridRobX, gridRobY));
             path.push_back(TPoint2D(gridRobX+1000, gridRobY));
@@ -288,14 +304,16 @@ int main(int argc, char* argv[]) {
             path.push_back(TPoint2D(gridRobX, gridRobY));
             */
             float prevAngle = 0.0f;
+            puts("PATH!!!!");
             for (int i = 1; i < path.size(); i++)
             {
                 float dx = path[i].x - path[i-1].x;
                 float dy = path[i].y - path[i-1].y;
+                printf("dx: %f, dy: %f\n", dx, dy);
                 float angle = (float)fmod(atan2(dy, dx)*57.2957795 + 360, 360);
                 PathCommand command;
                 command.delta_phi = angle_diff(prevAngle, angle);
-                command.delta_distance = sqrt(dx*dx + dy*dy);
+                command.delta_distance = sqrt(dx*dx + dy*dy) * 0.4 * 1000;
                 pathCommands.push_back(command);
                 prevAngle = angle;
             }
@@ -308,7 +326,7 @@ int main(int argc, char* argv[]) {
             pathCommands.pop_front();
             initialize_feedback();
 
-            state = HOVER;
+            state = TURNING;
         }
         
         else if (state == TURNING)
@@ -416,7 +434,7 @@ int main(int argc, char* argv[]) {
         window.draw(&verticies[0], verticies.size(), sf::LinesStrip); 
         
         // draw the grid representation (only the occupied cells)
-        sf::Color col = sf::Color::Yellow;
+        sf::Color col = sf::Color::Red;
         col.a = 128;
         for (unsigned y = 0; y < pathFinder.occupancyGrid.height(); ++y)
         {
@@ -455,30 +473,25 @@ int main(int argc, char* argv[]) {
 
 void hover()
 {
-    puts("hovering!");
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 1, 0.0f, 0.0f, 0.0f, 0.0f);
 }
 
 void moveSideway(float k) // left if k > 0, right if k < 0
 {
-    puts("moveSideway!");
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, k, 0.0f, 0.0f, 0.0f);
 }
 
 void moveForward(float k) // forward if k > 0, backward if k < 0
 {
-    puts("moveForward!");
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0.0f, k, 0.0f, 0.0f);
 }
 
 void turn(float k) // left if k < 0, right if k > 0
 {
-    puts("turn!");
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", 0, 0.0f, 0.0f, 0.0f, k);
 }
 
 void land()
 {
-    puts("landing!");
     db_printf(db, "drone_command", "%d,%f,%f,%f,%f", -1, 0.0f, 0.0f, 0.0f, 0.0f);
 }

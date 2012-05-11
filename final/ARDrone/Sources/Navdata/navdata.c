@@ -40,7 +40,7 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
         dt = microseconds - prevMicroseconds;
     prevMicroseconds = microseconds;
 
-    printf("Battery: %d\n", nd->vbat_flying_percentage);
+    //printf("Battery: %d\n", nd->vbat_flying_percentage);
 
     // stream to memdb
     db_printf(db, "navdata", "%u,%4.3f,%4.3f,%4.3f,%f,%f,%f",

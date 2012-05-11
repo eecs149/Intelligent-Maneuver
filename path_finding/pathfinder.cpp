@@ -107,7 +107,6 @@ bool PathFinder::findPath(const TPoint2D& start, const TPoint2D& end, deque<TPoi
         if (pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y+1, pt.x))
             fringe.push(pt.getSuccessor(0, 1, 10));
         // upleft
-        /*
         if (pt.x > 0 && pt.y > 0 && !occupancyGrid(pt.y-1, pt.x-1) && !occupancyGrid(pt.y-1, pt.x) && !occupancyGrid(pt.y, pt.x-1))
             fringe.push(pt.getSuccessor(-1, -1, 14));
         // downleft
@@ -119,7 +118,6 @@ bool PathFinder::findPath(const TPoint2D& start, const TPoint2D& end, deque<TPoi
         // downright
         if (pt.x+1 < occupancyGrid.width() && pt.y+1 < occupancyGrid.height() && !occupancyGrid(pt.y+1, pt.x+1) && !occupancyGrid(pt.y+1, pt.x) && !occupancyGrid(pt.y, pt.x+1))
             fringe.push(pt.getSuccessor(1, 1, 14));
-            */
     }
 
     return false;
@@ -157,7 +155,7 @@ void PathFinder::update(const COccupancyGridMap2D& gridMap, int startX, int star
                 for (unsigned xx = 0; xx < resolution; ++xx)
                 {
                     double pOccupied = gridMap.getCell(x*resolution+xx, y*resolution+yy);
-                    val |= pOccupied < 0.3;
+                    val |= pOccupied < 0.5;
                 }
             }
 

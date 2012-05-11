@@ -15,10 +15,8 @@ if(COMMAND cmake_policy)
 FIND_PACKAGE( MRPT REQUIRED base obs slam gui )    # WARNING: Add all the MRPT libs used by your program: "gui", "obs", "slam",etc. 
 
 # Declare the target (an executable)
-ADD_EXECUTABLE(mrpt_example1 read_log.cpp)
+ADD_EXECUTABLE(mrpt_example1 read_log.cpp pathfinder.cpp)
 TARGET_LINK_LIBRARIES(mrpt_example1 ${MRPT_LIBS} sfml-graphics sfml-window sfml-network sfml-system)
 
 # Set optimized building:
-IF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_BUILD_TYPE MATCHES "Debug")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mtune=native")
-ENDIF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_BUILD_TYPE MATCHES "Debug")
+SET(CMAKE_CXX_FLAGS "-g")
